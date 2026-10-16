@@ -496,6 +496,13 @@
 	Maximize Frame	最大化帧
 	Restore Frame	还原帧
 	Restore Workspace	恢复工作区
+	Full Screen Window	窗口全屏
+	Exit Full Screen Window	退出窗口全屏
+	Dock Window	停靠窗口
+	Gather Panel Windows	收拢面板窗口
+	Set Panel Window	设置面板窗口
+	List Panel Windows	列出面板窗口
+	Could not open a window for {panel}; it was docked again	无法为 {panel} 打开窗口，已重新停靠
 	Reveal Sequence in Project	在项目面板中显示序列
 	Video Thumbnails	视频缩略图
 	Audio Waveforms	音频波形

@@ -502,6 +502,13 @@
 	Maximize Frame	パネルを最大化
 	Restore Frame	パネルを元に戻す
 	Restore Workspace	ワークスペースを復元
+	Full Screen Window	ウィンドウをフルスクリーン
+	Exit Full Screen Window	ウィンドウのフルスクリーンを終了
+	Dock Window	ウィンドウをドッキング
+	Gather Panel Windows	パネルウィンドウを集める
+	Set Panel Window	パネルウィンドウを設定
+	List Panel Windows	パネルウィンドウの一覧
+	Could not open a window for {panel}; it was docked again	{panel} のウィンドウを開けなかったため、再びドッキングしました
 	Reveal Sequence in Project	プロジェクトでシーケンスを表示
 	Video Thumbnails	ビデオサムネイル
 	Audio Waveforms	オーディオ波形

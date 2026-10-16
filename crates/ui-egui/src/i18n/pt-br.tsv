@@ -509,6 +509,13 @@
 	Maximize Frame	Maximizar quadro do painel
 	Restore Frame	Restaurar quadro do painel
 	Restore Workspace	Restaurar área de trabalho
+	Full Screen Window	Janela em tela cheia
+	Exit Full Screen Window	Sair da janela em tela cheia
+	Dock Window	Encaixar janela
+	Gather Panel Windows	Reunir janelas de painéis
+	Set Panel Window	Posicionar janela de painel
+	List Panel Windows	Listar janelas de painéis
+	Could not open a window for {panel}; it was docked again	Não foi possível abrir uma janela para {panel}; ela foi encaixada novamente
 	Reveal Sequence in Project	Mostrar sequência no projeto
 	Video Thumbnails	Miniaturas de vídeo
 	Audio Waveforms	Formas de onda de áudio

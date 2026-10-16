@@ -250,6 +250,9 @@ pub fn invoke(app: &mut FilmcraftApp, ctx: &egui::Context, id: &str, mut params:
         // the engine's counters plus playback, frame workers and UI timings
         return Ok(crate::perf::stats(app));
     }
+    if let Some(result) = crate::os_windows::route(app, ctx, id, &mut params) {
+        return result;
+    }
     if let Some(result) = crate::dock_ui::route(app, ctx, id, &params) {
         return result;
     }
@@ -762,7 +765,7 @@ pub fn menu_items_for(session: &filmcraft_engine::Session) -> Vec<MenuItem> {
             checked: None,
         });
     }
-    for c in UI_COMMANDS.iter().chain(crate::panels::keyboard::COMMANDS) {
+    for c in UI_COMMANDS.iter().chain(crate::panels::keyboard::COMMANDS).chain(crate::os_windows::COMMANDS) {
         if c.menu.is_empty() {
             continue;
         }
@@ -871,8 +874,12 @@ fn shifted_key(k: egui::Key) -> Option<egui::Key> {
 /// rebound and resolved alongside engine commands (the `shortcuts.` commands).
 pub fn external_commands() -> Vec<filmcraft_engine::shortcuts::CommandInfo> {
     use filmcraft_engine::shortcuts::CommandInfo;
-    let mut v: Vec<CommandInfo> =
-        UI_COMMANDS.iter().chain(crate::panels::keyboard::COMMANDS).map(|c| CommandInfo::new(c.id, c.label, c.menu, c.shortcut)).collect();
+    let mut v: Vec<CommandInfo> = UI_COMMANDS
+        .iter()
+        .chain(crate::panels::keyboard::COMMANDS)
+        .chain(crate::os_windows::COMMANDS)
+        .map(|c| CommandInfo::new(c.id, c.label, c.menu, c.shortcut))
+        .collect();
     for p in PanelKind::ALL {
         v.push(CommandInfo::new(&panel_command_id(p), p.title(), &["Window"], p.window_shortcut()));
     }

@@ -17,7 +17,7 @@ fn floating_rect(group: &dock::Floating, screen: Rect) -> Rect {
     ))
 }
 
-fn drag_id() -> egui::Id {
+pub(crate) fn drag_id() -> egui::Id {
     egui::Id::new("dock-panel-drag")
 }
 
@@ -97,7 +97,8 @@ impl FilmcraftApp {
             Action::Activate { panel } => Some(*panel),
             _ => None,
         };
-        self.commit_dock(|shared| {
+        let fresh = crate::os_windows::floated(&action);
+        self.commit_dock(fresh, |shared| {
             crate::dock_shared::check_last_docked(shared, &action)?;
             shared.apply(action).map_err(|error| error.to_string())
         })?;
@@ -114,23 +115,28 @@ impl FilmcraftApp {
 
     /// Dock a panel along an edge of the whole workspace rather than beside one group.
     pub fn dock_to_edge(&mut self, panel: PanelKind, zone: Zone) -> Result<(), String> {
-        self.commit_dock(|shared| crate::dock_shared::dock_at_edge(shared, panel, zone))?;
+        self.commit_dock(None, |shared| crate::dock_shared::dock_at_edge(shared, panel, zone))?;
         self.ui.keys.maximized = None;
         Ok(())
     }
 
-    fn commit_dock(&mut self, change: impl FnOnce(&mut craft_ui::docking::Layout<PanelKind>) -> Result<(), String>) -> Result<(), String> {
+    fn commit_dock(
+        &mut self,
+        fresh: Option<PanelKind>,
+        change: impl FnOnce(&mut craft_ui::docking::Layout<PanelKind>) -> Result<(), String>,
+    ) -> Result<(), String> {
         let mut shared = crate::dock_shared::encode(&self.ui.dock, &self.ui.floating)?;
         shared.validate().map_err(|error| error.to_string())?;
         change(&mut shared)?;
-        let layout = crate::dock_shared::decode(shared)?;
+        let mut layout = crate::dock_shared::decode(shared)?;
+        crate::os_windows::carry_over(&self.ui.floating, &mut layout.floating, fresh);
         crate::dock_shared::encode(&layout.root, &layout.floating)?;
         self.ui.dock = layout.root;
         self.ui.floating = layout.floating;
         Ok(())
     }
 
-    fn panel_body(&mut self, ui: &mut egui::Ui, panel: PanelKind, content: Rect) {
+    pub(crate) fn panel_body(&mut self, ui: &mut egui::Ui, panel: PanelKind, content: Rect) {
         self.auto.add(&format!("panel.{}", panel.id()), content, panel.title());
         let mut child = ui.new_child(egui::UiBuilder::new().max_rect(content).id_salt(("panel", panel.id())));
         child.set_clip_rect(content.intersect(ui.clip_rect()));
@@ -151,6 +157,7 @@ impl FilmcraftApp {
         }
         for index in self.floating_order(ctx).into_iter().rev() {
             if let Some(group) = self.ui.floating.get(index)
+                && !crate::os_windows::is_separate(ctx, group)
                 && floating_rect(group, ctx.content_rect()).contains(pos)
             {
                 return group.panels.get(group.active) == Some(&PanelKind::Timeline);
@@ -179,6 +186,7 @@ impl FilmcraftApp {
     pub(crate) fn dock_area(&mut self, ui: &mut egui::Ui, body: Rect) {
         let t = self.tokens;
         let ctx = ui.ctx().clone();
+        crate::os_windows::begin_frame(self, &ctx);
         if let Some(panel) = self.pending_panel_raise.take()
             && let Some(owner) = self.ui.floating.iter().find(|group| group.panels.contains(&panel)).and_then(|group| group.panels.first())
         {
@@ -231,10 +239,14 @@ impl FilmcraftApp {
         }
         let floating_order = self.floating_order(&ctx);
         for index in floating_order.into_iter().filter(|_| maximized.is_none()) {
+            if self.ui.floating.get(index).is_some_and(|group| crate::os_windows::is_separate(&ctx, group)) {
+                continue;
+            }
             if let Some(target) = self.floating_group(&ctx, index, &seqs, &mut actions) {
                 targets.push(target);
             }
         }
+        self.show_panel_windows(&ctx, &seqs, &mut actions, &mut targets);
         for action in layout_actions {
             let _ = self.dock_command(&ctx, action);
         }
@@ -340,16 +352,18 @@ impl FilmcraftApp {
 
     fn panel_drag(&mut self, ctx: &egui::Context, body: Rect, targets: &[DropTarget<PanelKind>]) {
         let Some(panel) = ctx.data(|data| data.get_temp::<PanelKind>(drag_id())) else { return };
-        let canceled =
-            ctx.input(|input| input.key_pressed(egui::Key::Escape) || !input.focused || (!input.pointer.primary_down() && !input.pointer.primary_released()));
+        let input = crate::os_windows::drag_input(self, ctx, panel);
+        let canceled = input.canceled;
         if canceled || (!self.ui.dock.contains(panel) && !self.ui.floating.iter().any(|group| group.panels.contains(&panel))) {
             ctx.data_mut(|data| data.remove::<PanelKind>(drag_id()));
             return;
         }
-        let Some(pos) = ctx.pointer_latest_pos() else { return };
-        let force_float = ctx.input(|input| input.modifiers.command);
+        let Some(pos) = input.pos else { return };
+        let force_float = input.force_float;
         let edge = (!force_float).then(|| workspace_edge(body, pos, targets)).flatten();
         let proposal = (!force_float && edge.is_none()).then(|| resolve_drop(&panel, pos, targets)).flatten();
+        let preview = edge.as_ref().map(|edge| edge.2).or_else(|| proposal.as_ref().map(|proposal| proposal.preview));
+        crate::os_windows::publish_preview(ctx, panel, pos, preview, proposal.as_ref().and_then(|proposal| proposal.insertion));
         let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::new("dock-drop")));
         let t = self.tokens;
         if let Some((_, _, preview)) = edge {
@@ -369,7 +383,7 @@ impl FilmcraftApp {
         painter.galley(ghost.min + vec2(8.0, 4.0), title, Color32::WHITE);
         ctx.set_cursor_icon(egui::CursorIcon::Grabbing);
         ctx.request_repaint();
-        if ctx.input(|input| input.pointer.primary_released()) {
+        if input.released {
             ctx.data_mut(|data| data.remove::<PanelKind>(drag_id()));
             if let Some((_, zone, _)) = edge {
                 if crate::menus::invoke(self, ctx, "window.dockPanel", json!({"panel": panel.id(), "zone": zone})).is_ok() {
@@ -423,7 +437,7 @@ fn workspace_edge(body: Rect, pos: egui::Pos2, targets: &[DropTarget<PanelKind>]
     Some((zone, name, preview))
 }
 
-fn target(group: &Group, mut tabs: Vec<(PanelKind, Rect)>, allow_splits: bool) -> Option<DropTarget<PanelKind>> {
+pub(crate) fn target(group: &Group, mut tabs: Vec<(PanelKind, Rect)>, allow_splits: bool) -> Option<DropTarget<PanelKind>> {
     let strip = Rect::from_min_max(group.rect.min, pos2(group.rect.max.x, group.content.min.y));
     // A compact grip still identifies the source group to the shared resolver.
     for panel in &group.panels {

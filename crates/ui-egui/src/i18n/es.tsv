@@ -505,6 +505,13 @@
 	Maximize Frame	Maximizar marco
 	Restore Frame	Restaurar marco
 	Restore Workspace	Restaurar espacio de trabajo
+	Full Screen Window	Ventana a pantalla completa
+	Exit Full Screen Window	Salir de la ventana a pantalla completa
+	Dock Window	Acoplar ventana
+	Gather Panel Windows	Reunir ventanas de paneles
+	Set Panel Window	Colocar ventana de panel
+	List Panel Windows	Enumerar ventanas de paneles
+	Could not open a window for {panel}; it was docked again	No se pudo abrir una ventana para {panel}; se ha vuelto a acoplar
 	Reveal Sequence in Project	Mostrar secuencia en el proyecto
 	Video Thumbnails	Miniaturas de video
 	Audio Waveforms	Formas de onda de audio

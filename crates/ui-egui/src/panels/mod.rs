@@ -272,9 +272,11 @@ pub fn drag_ghost(app: &FilmcraftApp, ui: &egui::Ui) {
 
 /// The panel "≡" menu.
 pub fn panel_menu_popup(app: &mut FilmcraftApp, ui: &mut egui::Ui) {
-    drag_ghost(app, ui);
+    crate::os_windows::drag_ghost(app, ui);
     // bins opened in new windows (Project panel)
-    project::floating(app, ui.ctx());
+    if crate::os_windows::is_root(ui.ctx()) {
+        project::floating(app, ui.ctx());
+    }
     let id = egui::Id::new("panel-menu");
     let Some((p, pos)) = ui.ctx().data(|d| d.get_temp::<(PanelKind, egui::Pos2)>(id)) else { return };
     let mut close = false;
@@ -308,6 +310,7 @@ pub fn panel_menu_popup(app: &mut FilmcraftApp, ui: &mut egui::Ui) {
                         let _ = crate::menus::invoke(app, ui.ctx(), "window.floatPanel", serde_json::json!({"panel": p.id()}));
                         close = true;
                     }
+                    close |= crate::os_windows::panel_menu_items(app, ui, p);
                     let maximized = app.ui.keys.maximized.is_some_and(|q| app.ui.dock.contains(q) || app.ui.floating.iter().any(|g| g.panels.contains(&q)));
                     let r = ui.button(if maximized { tl!("Restore Frame") } else { tl!("Maximize Frame") });
                     app.auto.add(&format!("panel.menu.{}.maximize", p.id()), r.rect, if maximized { "Restore Frame" } else { "Maximize Frame" });

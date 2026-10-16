@@ -454,8 +454,12 @@ impl DockNode {
 pub struct Floating {
     pub panels: Vec<PanelKind>,
     pub active: usize,
-    /// [x, y, width, height] in logical points.
+    /// [x, y, width, height] in logical points; with `window`, the window's outer position and
+    /// inner size in physical desktop pixels.
     pub rect: [f32; 4],
+    /// Set when the group is its own OS window (see `os_windows`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub window: Option<crate::os_windows::OsWindow>,
 }
 
 /// App persistence shape; all mutations pass through the shared docking model.

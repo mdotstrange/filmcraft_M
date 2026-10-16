@@ -68,7 +68,7 @@ pub(crate) fn decode(layout: SharedLayout<PanelKind>) -> Result<Layout, String> 
             Some(root) => decode_node(root)?,
             None => DockNode::Tabs { panels: vec![], active: 0 },
         },
-        floating: layout.floating.into_iter().map(|group| Floating { panels: group.panels, active: group.active, rect: group.rect }).collect(),
+        floating: layout.floating.into_iter().map(|group| Floating { panels: group.panels, active: group.active, rect: group.rect, window: None }).collect(),
     })
 }
 
@@ -76,8 +76,10 @@ pub(crate) fn apply(layout: &mut Layout, action: Action<PanelKind>) -> Result<()
     let mut shared = encode(&layout.root, &layout.floating)?;
     shared.validate().map_err(|error| error.to_string())?;
     check_last_docked(&shared, &action)?;
+    let fresh = crate::os_windows::floated(&action);
     shared.apply(action).map_err(|error| error.to_string())?;
-    let proposed = decode(shared)?;
+    let mut proposed = decode(shared)?;
+    crate::os_windows::carry_over(&layout.floating, &mut proposed.floating, fresh);
     encode(&proposed.root, &proposed.floating)?;
     *layout = proposed;
     Ok(())
