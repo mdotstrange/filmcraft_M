@@ -145,7 +145,7 @@ mod tests {
     const RECT: [f32; 4] = [3840.0, 0.0, 1280.0, 720.0];
 
     fn window(fullscreen: bool) -> OsWindow {
-        OsWindow { id: 1, fullscreen, maximized: false, scale: 1.0 }
+        OsWindow { id: 1, fullscreen, maximized: false, scale: 1.0, layout: None }
     }
 
     fn info(rect: [f32; 4], fullscreen: bool) -> InfoLite {
@@ -199,7 +199,7 @@ mod tests {
     #[test]
     fn no_read_back_while_full_screen_maximized_or_minimized() {
         for (fullscreen, maximized, minimized) in [(true, false, false), (false, true, false), (false, false, true)] {
-            let w = OsWindow { id: 1, fullscreen, maximized, scale: 1.0 };
+            let w = OsWindow { id: 1, fullscreen, maximized, scale: 1.0, layout: None };
             let mut state = SyncState { rect: Some(RECT), fullscreen: Some(fullscreen), maximized: Some(maximized), settle: 0 };
             let mut i = info([0.0, 0.0, 3840.0, 2160.0], fullscreen);
             i.maximized = maximized;

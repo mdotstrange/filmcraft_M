@@ -92,6 +92,9 @@ impl FilmcraftApp {
     }
 
     pub fn apply_dock(&mut self, action: Action<PanelKind>) -> Result<(), String> {
+        if let Some(result) = crate::os_windows::dock_into_window(self, &action) {
+            return result;
+        }
         let relocating = matches!(&action, Action::Move { .. } | Action::Float { .. });
         let reveal = match &action {
             Action::Activate { panel } => Some(*panel),

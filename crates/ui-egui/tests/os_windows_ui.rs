@@ -2,7 +2,7 @@
 //! group's OS window (identity, desktop rect, full screen). Tests run with embedded viewports, so
 //! windows stay areas in the main window here; the model is what is checked.
 
-use craft_ui::docking::{Action, Placement};
+use craft_ui::docking::{Action, Placement, Zone};
 use egui::vec2;
 use egui_kittest::Harness;
 use filmcraft_engine::Session;
@@ -33,7 +33,7 @@ fn app() -> (FilmcraftApp, egui::Context) {
 }
 
 fn window(app: &FilmcraftApp, panel: PanelKind) -> Option<filmcraft_ui_egui::os_windows::OsWindow> {
-    app.ui.floating.iter().find(|group| group.panels.contains(&panel)).and_then(|group| group.window)
+    app.ui.floating.iter().find(|group| group.panels.contains(&panel)).and_then(|group| group.window.clone())
 }
 
 const RIGHT: [f32; 4] = [3840.0, 0.0, 1280.0, 720.0];
@@ -47,7 +47,7 @@ fn set_window_places_a_docked_panel_in_its_own_full_screen_window() {
     assert!(!app.ui.dock.contains(PanelKind::Program));
     let group = app.ui.floating.iter().find(|group| group.panels == [PanelKind::Program]).unwrap();
     assert_eq!(group.rect, RIGHT);
-    let w = group.window.unwrap();
+    let w = group.window.clone().unwrap();
     assert!(w.fullscreen && !w.maximized && w.id > 0);
 
     let out = menus::invoke(&mut app, &ctx, "window.toggleWindowFullScreen", json!({"panel": "Program"})).unwrap();
@@ -82,7 +82,78 @@ fn docking_transactions_keep_the_window() {
     // the same through the shared Layout API
     let mut layout = Layout { root: app.ui.dock.clone(), floating: app.ui.floating.clone() };
     layout.apply(Action::Activate { panel: PanelKind::Program }).unwrap();
-    assert_eq!(layout.floating.iter().find(|g| g.panels.contains(&PanelKind::Program)).and_then(|g| g.window).map(|w| w.id), Some(id));
+    assert_eq!(layout.floating.iter().find(|g| g.panels.contains(&PanelKind::Program)).and_then(|g| g.window.as_ref()).map(|w| w.id), Some(id));
+}
+
+/// The tab group (panels) holding `panel` in a dock tree.
+fn group_of(tree: &DockNode, panel: PanelKind) -> Option<Vec<PanelKind>> {
+    match tree {
+        DockNode::Tabs { panels, .. } => panels.contains(&panel).then(|| panels.clone()),
+        DockNode::Split { a, b, .. } => group_of(a, panel).or_else(|| group_of(b, panel)),
+    }
+}
+
+fn window_tree(app: &FilmcraftApp, panel: PanelKind) -> DockNode {
+    let group = app.ui.floating.iter().find(|group| group.panels.contains(&panel)).unwrap();
+    group.window.as_ref().and_then(|w| w.layout.clone()).unwrap_or(DockNode::Tabs { panels: group.panels.clone(), active: group.active })
+}
+
+#[test]
+fn panels_split_and_tab_inside_one_window() {
+    let (mut app, ctx) = app();
+    menus::invoke(&mut app, &ctx, "window.setWindow", json!({"panel": "Project", "rect": [-1920, 0, 1920, 1160]})).unwrap();
+    let id = window(&app, PanelKind::Project).unwrap().id;
+    // Source below Project, in the same window (a drop on the lower part of the Project group)
+    app.apply_dock(Action::Move { panel: PanelKind::Source, anchor: PanelKind::Project, placement: Placement::Split(Zone::Bottom) }).unwrap();
+    assert!(!app.ui.dock.contains(PanelKind::Source));
+    assert_eq!(window(&app, PanelKind::Source).map(|w| w.id), Some(id));
+    let tree = window_tree(&app, PanelKind::Project);
+    assert!(matches!(tree, DockNode::Split { vertical: true, .. }), "{tree:?}");
+    assert_eq!(group_of(&tree, PanelKind::Source), Some(vec![PanelKind::Source]));
+    // Info as a tab beside Source, by the dockPanel command
+    menus::invoke(&mut app, &ctx, "window.dockPanel", json!({"panel": "Info", "anchor": "Source", "zone": "center"})).unwrap();
+    assert_eq!(group_of(&window_tree(&app, PanelKind::Project), PanelKind::Info), Some(vec![PanelKind::Source, PanelKind::Info]));
+    // and from there to the right of Project, inside the window
+    menus::invoke(&mut app, &ctx, "window.dockPanel", json!({"panel": "Info", "anchor": "Project", "zone": "right"})).unwrap();
+    let tree = window_tree(&app, PanelKind::Project);
+    assert_eq!(group_of(&tree, PanelKind::Info), Some(vec![PanelKind::Info]));
+    assert_eq!(group_of(&tree, PanelKind::Source), Some(vec![PanelKind::Source]));
+    // clicking a tab and closing a panel go through the shared model; the tree follows
+    app.apply_dock(Action::Activate { panel: PanelKind::Source }).unwrap();
+    app.apply_dock(Action::Close { panel: PanelKind::Info }).unwrap();
+    let tree = window_tree(&app, PanelKind::Project);
+    assert_eq!(group_of(&tree, PanelKind::Info), None);
+    assert!(group_of(&tree, PanelKind::Source).is_some() && group_of(&tree, PanelKind::Project).is_some());
+    // Source docked back into the main window leaves the window's tree
+    app.apply_dock(Action::Move { panel: PanelKind::Source, anchor: PanelKind::Program, placement: Placement::Split(Zone::Left) }).unwrap();
+    assert!(app.ui.dock.contains(PanelKind::Source));
+    assert_eq!(window_tree(&app, PanelKind::Project), DockNode::Tabs { panels: vec![PanelKind::Project], active: 0 });
+    assert_eq!(window(&app, PanelKind::Project).map(|w| w.id), Some(id));
+    // a panel cannot dock beside itself, and nothing changes
+    let before = app.ui.floating.clone();
+    assert!(app.apply_dock(Action::Move { panel: PanelKind::Project, anchor: PanelKind::Project, placement: Placement::Split(Zone::Left) }).is_err());
+    assert_eq!(app.ui.floating, before);
+}
+
+#[test]
+fn a_split_window_is_saved_with_the_workspace() {
+    let dir = std::env::temp_dir().join(format!("filmcraft-os-windows-split-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let mut session = Session::default();
+    session.prefs_path = Some(dir.join("preferences.json"));
+    let mut app = FilmcraftApp::new(session);
+    let ctx = egui::Context::default();
+    app.ui.dock = layout().root;
+    app.ui.floating.clear();
+    menus::invoke(&mut app, &ctx, "window.setWindow", json!({"panel": "Project", "rect": [-1920, 0, 1920, 1160]})).unwrap();
+    menus::invoke(&mut app, &ctx, "window.dockPanel", json!({"panel": "Source", "anchor": "Project", "zone": "bottom"})).unwrap();
+    let saved = app.ui.floating.clone();
+    menus::invoke(&mut app, &ctx, "window.workspace.saveAs", json!({"name": "Left Monitor"})).unwrap();
+    app.set_workspace("Editing");
+    app.set_workspace("Left Monitor");
+    assert_eq!(app.ui.floating, saved);
+    assert!(matches!(window_tree(&app, PanelKind::Project), DockNode::Split { .. }));
+    std::fs::remove_dir_all(dir).unwrap();
 }
 
 #[test]
@@ -93,7 +164,7 @@ fn dock_window_returns_every_panel_and_gather_resets_windows() {
     let gathered = menus::invoke(&mut app, &ctx, "window.gatherWindows", json!({})).unwrap();
     assert_eq!(gathered["windows"].as_array().map(Vec::len), Some(2));
     for group in &app.ui.floating {
-        let w = group.window.unwrap();
+        let w = group.window.clone().unwrap();
         assert!(!w.fullscreen && !w.maximized);
         assert!(group.rect[0] >= 0.0 && group.rect[1] >= 0.0, "{:?}", group.rect);
     }
@@ -171,7 +242,7 @@ fn saved_files_without_windows_keep_their_format_and_bad_windows_stay_isolated()
         json!({"name": "Bad", "layout": root, "floating": [{"panels": ["Program"], "active": 0, "rect": RIGHT, "window": {"id": "two", "fullscreen": "yes"}}]});
     let prefs: dock::WorkspacePrefs = serde_json::from_value(json!({"saved": [good, bad], "current": "Good"})).unwrap();
     let loaded = dock::saved_docking(&prefs, "Good");
-    let w = loaded.floating.first().and_then(|g| g.window).unwrap();
+    let w = loaded.floating.first().and_then(|g| g.window.clone()).unwrap();
     assert!(w.fullscreen && w.id == 2 && !w.maximized);
     // the unreadable workspace falls back without touching the other one
     let fallback = dock::saved_docking(&prefs, "Bad");

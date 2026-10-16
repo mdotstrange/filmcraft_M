@@ -1,5 +1,5 @@
-//! Drawing the panel windows: one egui immediate viewport per window, holding the group's tab
-//! strip and active panel exactly as a docked group draws them.
+//! Drawing the panel windows: one egui immediate viewport per window, holding its own dock tree
+//! (splits, gutters, tab groups) drawn exactly as the main window draws its dock.
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
@@ -11,20 +11,20 @@ use super::model::{self, Frame, OsWindow};
 use super::sync::{self, InfoLite};
 use super::{Runtime, Sample, WindowRt, native, own_frame, paint_preview, with_runtime};
 use crate::FilmcraftApp;
-use crate::dock::{self, DockAction, Floating, Group, PanelKind};
+use crate::dock::{self, DockAction, Floating, PanelKind};
 
 /// What one window's pass hands back to the main window's dock pass.
 #[derive(Default)]
 struct PassOut {
     actions: Vec<DockAction>,
-    target: Option<DropTarget<PanelKind>>,
+    targets: Vec<DropTarget<PanelKind>>,
     /// The window was closed: dock its panels.
     close: bool,
 }
 
 /// The builder a window is created with. It must stay the same for the window's life (egui turns
 /// any change into commands), so it is kept and only the title follows the active tab.
-fn builder(group: &Floating, window: OsWindow, activate: bool) -> egui::ViewportBuilder {
+fn builder(group: &Floating, window: &OsWindow, activate: bool) -> egui::ViewportBuilder {
     let scale = model::sane_scale(window.scale);
     let [x, y, w, h] = group.rect;
     egui::ViewportBuilder::default()
@@ -43,9 +43,22 @@ fn take<T: 'static + Clone + Send + Sync>(data: &mut egui::util::IdTypeMap, id: 
     value
 }
 
+/// "Project, Source — FilmCraft": the panel on show in each of the window's groups.
 fn title(group: &Floating) -> String {
-    let name = group.panels.get(group.active).or(group.panels.first()).map(|panel| crate::i18n::t(panel.title()).to_string()).unwrap_or_default();
-    format!("{name} — FilmCraft")
+    fn shown(node: &dock::DockNode, out: &mut Vec<String>) {
+        match node {
+            dock::DockNode::Tabs { panels, active } => {
+                out.extend(panels.get(*active).or(panels.first()).map(|panel| crate::i18n::t(panel.title()).to_string()))
+            }
+            dock::DockNode::Split { a, b, .. } => {
+                shown(a, out);
+                shown(b, out);
+            }
+        }
+    }
+    let mut names = Vec::new();
+    shown(&model::tree_of(group), &mut names);
+    format!("{} — FilmCraft", names.join(", "))
 }
 
 impl FilmcraftApp {
@@ -61,7 +74,7 @@ impl FilmcraftApp {
         if !native(ctx) {
             return;
         }
-        let ids: Vec<u32> = self.ui.floating.iter().filter_map(|group| group.window.map(|window| window.id)).collect();
+        let ids: Vec<u32> = self.ui.floating.iter().filter_map(|group| group.window.as_ref().map(|window| window.id)).collect();
         if ids.is_empty() {
             return;
         }
@@ -70,13 +83,13 @@ impl FilmcraftApp {
         let mut rt = with_runtime(ctx, std::mem::take);
         let mut close = Vec::new();
         for id in ids {
-            let Some(group) = self.ui.floating.iter().find(|group| group.window.is_some_and(|window| window.id == id)).cloned() else { continue };
-            let Some(window) = group.window else { continue };
+            let Some(group) = self.ui.floating.iter().find(|group| group.window.as_ref().is_some_and(|window| window.id == id)).cloned() else { continue };
+            let Some(window) = group.window.clone() else { continue };
             let viewport = window.viewport_id();
             let state = rt.windows.entry(id).or_default();
             if state.builder.is_none() || !live.contains(&viewport) {
                 // (re)created: from the layout as it is now
-                state.builder = Some(builder(&group, window, state.activate));
+                state.builder = Some(builder(&group, &window, state.activate));
                 state.sync = sync::SyncState::default();
                 state.activate = false;
             }
@@ -99,7 +112,7 @@ impl FilmcraftApp {
             match shown {
                 Ok(out) => {
                     actions.extend(out.actions);
-                    targets.extend(out.target);
+                    targets.extend(out.targets);
                     if out.close {
                         close.push(id);
                     }
@@ -113,8 +126,12 @@ impl FilmcraftApp {
         }
         with_runtime(ctx, |slot| *slot = rt);
         for id in close {
-            if let Some(panel) =
-                self.ui.floating.iter().find(|group| group.window.is_some_and(|window| window.id == id)).and_then(|group| group.panels.first().copied())
+            if let Some(panel) = self
+                .ui
+                .floating
+                .iter()
+                .find(|group| group.window.as_ref().is_some_and(|window| window.id == id))
+                .and_then(|group| group.panels.first().copied())
             {
                 let _ = crate::menus::invoke(self, ctx, "window.dockWindow", json!({"panel": panel.id()}));
             }
@@ -133,9 +150,9 @@ impl FilmcraftApp {
     ) {
         let ctx = ui.ctx().clone();
         let viewport = ctx.viewport_id();
-        let Some(index) = self.ui.floating.iter().position(|group| group.window.is_some_and(|window| window.id == id)) else { return };
+        let Some(index) = self.ui.floating.iter().position(|group| group.window.as_ref().is_some_and(|window| window.id == id)) else { return };
         let Some(group) = self.ui.floating.get(index).cloned() else { return };
-        let Some(window) = group.window else { return };
+        let Some(window) = group.window.clone() else { return };
         let mut state: WindowRt = rt.windows.remove(&id).unwrap_or_default();
         let embedded = class == ViewportClass::EmbeddedWindow;
         if ctx.input(|input| input.viewport().close_requested()) {
@@ -179,34 +196,46 @@ impl FilmcraftApp {
         let full = ui.max_rect();
         ui.painter().rect_filled(full, 0.0, t.app_bg);
         let rect = full.shrink(1.0);
-        let compact = group.panels.len() == 1 && group.panels.first().is_some_and(|panel| panel.compact());
-        let header = if compact { 8.0 } else { t.tab_h };
-        let laid = Group {
-            path: format!("w{id}"),
-            rect,
-            content: Rect::from_min_max(pos2(rect.min.x, (rect.min.y + header).min(rect.max.y)), rect.max),
-            panels: group.panels.clone(),
-            active: group.active,
-        };
         let first_element = self.auto.elements.len();
-        let chrome = dock::draw_group_chrome_details(ui, &laid, seqs, &t, &mut self.auto);
-        for action in chrome.actions {
-            match action {
-                DockAction::PanelMenu(panel, pos) => {
-                    state.menu = Some((panel, pos));
-                    state.menu_opened = ctx.cumulative_frame_nr();
-                }
-                DockAction::BeginDrag(panel) => {
-                    rt.drag_owner = Some((panel, viewport));
-                    out.actions.push(action);
-                }
-                other => out.actions.push(other),
+        // the window's own dock tree: splits, gutters and tab groups as in the main window
+        let mut tree = model::tree_of(&group);
+        let mut groups = Vec::new();
+        let mut resized = Vec::new();
+        dock::layout_with_actions(ui, &mut tree, rect, &t, &format!("w{id}"), &mut groups, &mut self.auto, &mut resized);
+        if !resized.is_empty() {
+            for action in resized {
+                crate::dock_shared::apply_tree(&mut tree, action);
+            }
+            if let Some(saved) = self.ui.floating.iter_mut().filter_map(|slot| slot.window.as_mut()).find(|saved| saved.id == id) {
+                saved.layout = Some(tree);
             }
         }
-        if let Some(active) = laid.panels.get(laid.active).copied() {
-            self.panel_body(ui, active, laid.content);
+        let mut tabs = Vec::new();
+        for laid in &groups {
+            let chrome = dock::draw_group_chrome_details(ui, laid, seqs, &t, &mut self.auto);
+            tabs.push(chrome.tabs);
+            for action in chrome.actions {
+                match action {
+                    DockAction::PanelMenu(panel, pos) => {
+                        state.menu = Some((panel, pos));
+                        state.menu_opened = ctx.cumulative_frame_nr();
+                    }
+                    DockAction::BeginDrag(panel) => {
+                        rt.drag_owner = Some((panel, viewport));
+                        out.actions.push(action);
+                    }
+                    other => out.actions.push(other),
+                }
+            }
         }
-        dock::paint_group_focus(ui, &laid, self.ui.focused, &t);
+        for laid in &groups {
+            if let Some(active) = laid.panels.get(laid.active).copied() {
+                self.panel_body(ui, active, laid.content);
+            }
+        }
+        for laid in &groups {
+            dock::paint_group_focus(ui, laid, self.ui.focused, &t);
+        }
 
         // this window's panel menu, under the key the panel menu reads (the main window's own
         // menu, if one is open, is put back afterwards)
@@ -270,18 +299,21 @@ impl FilmcraftApp {
         let first_element = first_element.min(self.auto.elements.len());
         state.elements = self.auto.elements.split_off(first_element);
 
-        out.target = root.zip(frame).and_then(|(root, frame)| {
-            let mut target = crate::dock_ui::target(&laid, chrome.tabs, false)?;
+        // every group of the window is a drop target (splits allowed), in main-window points
+        if let Some((root, frame)) = root.zip(frame) {
             let to_root = |rect: Rect| root.rect_to_local(frame.rect_to_phys(rect));
-            target.rect = to_root(target.rect);
-            target.tab_strip = target.tab_strip.map(to_root);
-            for (_, tab) in &mut target.tabs {
-                if tab.is_finite() && tab.is_positive() {
-                    *tab = to_root(*tab);
+            for (laid, tabs) in groups.iter().zip(tabs) {
+                let Some(mut target) = crate::dock_ui::target(laid, tabs, true) else { continue };
+                target.rect = to_root(target.rect);
+                target.tab_strip = target.tab_strip.map(to_root);
+                for (_, tab) in &mut target.tabs {
+                    if tab.is_finite() && tab.is_positive() {
+                        *tab = to_root(*tab);
+                    }
                 }
+                out.targets.push(target);
             }
-            Some(target)
-        });
+        }
         rt.windows.insert(id, state);
     }
 }
@@ -296,9 +328,9 @@ mod tests {
             panels: vec![PanelKind::Program],
             active: 0,
             rect: [3840.0, 200.0, 2560.0, 1440.0],
-            window: Some(OsWindow { id: 1, fullscreen: true, maximized: false, scale: 2.0 }),
+            window: Some(OsWindow { id: 1, fullscreen: true, maximized: false, scale: 2.0, layout: None }),
         };
-        let b = builder(&group, group.window.unwrap_or_default(), false);
+        let b = builder(&group, &group.window.clone().unwrap_or_default(), false);
         assert_eq!(b.position, Some(pos2(1920.0, 100.0)));
         assert_eq!(b.inner_size, Some(vec2(1280.0, 720.0)));
         assert_eq!(b.title.as_deref(), Some("Program — FilmCraft"));
@@ -307,10 +339,27 @@ mod tests {
     }
 
     #[test]
+    fn a_split_window_is_titled_after_every_panel_on_show() {
+        let layout = dock::DockNode::Split {
+            vertical: true,
+            size: dock::SplitSize::Ratio(0.5),
+            a: Box::new(dock::DockNode::Tabs { panels: vec![PanelKind::Project, PanelKind::Info], active: 0 }),
+            b: Box::new(dock::DockNode::Tabs { panels: vec![PanelKind::Source], active: 0 }),
+        };
+        let group = Floating {
+            panels: vec![PanelKind::Project, PanelKind::Info, PanelKind::Source],
+            active: 2,
+            rect: [0.0, 0.0, 800.0, 600.0],
+            window: Some(OsWindow { id: 1, layout: Some(layout), ..Default::default() }),
+        };
+        assert_eq!(title(&group), "Project, Source — FilmCraft");
+    }
+
+    #[test]
     fn a_window_survives_a_hostile_scale() {
         let group =
             Floating { panels: vec![], active: 7, rect: [1.0, 2.0, 300.0, 200.0], window: Some(OsWindow { id: 1, scale: f32::NAN, ..Default::default() }) };
-        let b = builder(&group, group.window.unwrap_or_default(), true);
+        let b = builder(&group, &group.window.clone().unwrap_or_default(), true);
         assert!(b.position.is_some_and(|p| p.is_finite()));
         assert_eq!(b.title.as_deref(), Some(" — FilmCraft"));
     }

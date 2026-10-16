@@ -63,13 +63,13 @@ fn panel_param(app: &FilmcraftApp, params: &Value) -> Result<PanelKind, String> 
 
 fn window_json(group: &Floating) -> Value {
     json!({
-        "id": group.window.map(|window| window.id),
+        "id": group.window.as_ref().map(|window| window.id),
         "panels": group.panels.iter().map(|panel| panel.id()).collect::<Vec<_>>(),
         "active": group.panels.get(group.active).map(|panel| panel.id()),
         "rect": group.rect,
-        "fullScreen": group.window.is_some_and(|window| window.fullscreen),
-        "maximized": group.window.is_some_and(|window| window.maximized),
-        "scale": group.window.map(|window| window.scale),
+        "fullScreen": group.window.as_ref().is_some_and(|window| window.fullscreen),
+        "maximized": group.window.as_ref().is_some_and(|window| window.maximized),
+        "scale": group.window.as_ref().map(|window| window.scale),
     })
 }
 
@@ -124,7 +124,7 @@ fn set_window(app: &mut FilmcraftApp, ctx: &egui::Context, params: &Value) -> Re
         let [x, y, w, h] = group.rect;
         let min = root.to_phys(pos2(x, y));
         group.rect = [min.x, min.y, w * root.ppp, h * root.ppp];
-        group.window = Some(OsWindow { id, fullscreen: false, maximized: false, scale: root.ppp });
+        group.window = Some(OsWindow { id, fullscreen: false, maximized: false, scale: root.ppp, layout: None });
     }
     if let Some(rect) = rect {
         group.rect = rect;
@@ -203,7 +203,7 @@ fn list(app: &FilmcraftApp, ctx: &egui::Context) -> Value {
         .floating
         .iter()
         .filter_map(|group| {
-            let window = group.window?;
+            let window = group.window.as_ref()?;
             let viewport = window.viewport_id();
             let mut value = window_json(group);
             let info = live.get(&viewport);

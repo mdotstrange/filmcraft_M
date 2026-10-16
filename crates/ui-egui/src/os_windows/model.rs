@@ -6,11 +6,11 @@ use std::cmp::Reverse;
 use egui::{Pos2, Rect, ViewportId, pos2};
 use serde::{Deserialize, Serialize};
 
-use crate::dock::{Floating, PanelKind};
+use crate::dock::{DockNode, Floating, PanelKind};
 
 /// A floating group shown as its own OS window. The group's `rect` then holds the window's outer
 /// position and inner size in physical desktop pixels, so it reopens on the same monitor.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct OsWindow {
     /// Stable identity: the window survives tab changes, and its egui viewport derives from it.
@@ -19,11 +19,72 @@ pub struct OsWindow {
     pub maximized: bool,
     /// The window's pixels per point when last seen (monitor scale × UI zoom); 0 = unknown.
     pub scale: f32,
+    /// How the window's panels are arranged: splits and tab groups, like the main window's dock.
+    /// None = one tab group of all its panels. The shared docking model only knows the group's
+    /// flat panel list; [`reconcile`] keeps this tree in step with it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub layout: Option<DockNode>,
 }
 
 impl OsWindow {
     pub fn viewport_id(&self) -> ViewportId {
         ViewportId::from_hash_of(("filmcraft-panel-window", self.id))
+    }
+}
+
+/// A window's arrangement: its saved tree, or one tab group of its panels.
+pub fn tree_of(group: &Floating) -> DockNode {
+    group
+        .window
+        .as_ref()
+        .and_then(|window| window.layout.clone())
+        .unwrap_or_else(|| DockNode::Tabs { panels: group.panels.clone(), active: group.active.min(group.panels.len().saturating_sub(1)) })
+}
+
+/// Make a window's tree hold exactly `panels`: drop the ones that left the window, add the ones
+/// that joined (as tabs beside an existing panel), and bring `active` to the front of its group.
+/// A tree the shared model can't read (a hostile file) starts over as one tab group.
+pub fn reconcile(tree: &mut DockNode, panels: &[PanelKind], active: Option<PanelKind>) {
+    use crate::dock_shared::apply_tree;
+    use craft_ui::docking::Action;
+    let fresh = || DockNode::Tabs { panels: panels.to_vec(), active: active.and_then(|a| panels.iter().position(|p| *p == a)).unwrap_or(0) };
+    let valid = crate::dock_shared::encode(tree, &[]).is_ok_and(|shared| shared.validate().is_ok());
+    if !valid {
+        *tree = fresh();
+        return;
+    }
+    let mut have = Vec::new();
+    tree.panels(&mut have);
+    for panel in have.iter().copied().filter(|panel| !panels.contains(panel)) {
+        if !apply_tree(tree, Action::Close { panel }) {
+            *tree = fresh();
+            return;
+        }
+    }
+    for panel in panels.iter().copied().filter(|panel| !have.contains(panel)) {
+        let mut now = Vec::new();
+        tree.panels(&mut now);
+        let Some(anchor) = now.first().copied() else {
+            *tree = DockNode::Tabs { panels: vec![panel], active: 0 };
+            continue;
+        };
+        if !apply_tree(tree, Action::Open { panel, anchor: Some(anchor) }) {
+            *tree = fresh();
+            return;
+        }
+    }
+    if let Some(active) = active.filter(|active| panels.contains(active)) {
+        apply_tree(tree, Action::Activate { panel: active });
+    }
+}
+
+/// [`reconcile`] every window of a layout against its group.
+pub fn reconcile_all(groups: &mut [Floating]) {
+    for group in groups.iter_mut() {
+        let active = group.panels.get(group.active).copied();
+        if let Some(tree) = group.window.as_mut().and_then(|window| window.layout.as_mut()) {
+            reconcile(tree, &group.panels, active);
+        }
     }
 }
 
@@ -96,21 +157,23 @@ pub fn carry_over(before: &[Floating], after: &mut [Floating], fresh: Option<Pan
     let limit = craft_ui::docking::MAX_PANELS;
     let mut pairs = Vec::new();
     for (b, old) in before.iter().enumerate().take(limit) {
-        let Some(window) = old.window else { continue };
+        if old.window.is_none() {
+            continue;
+        }
         for (a, new) in after.iter().enumerate().take(limit) {
             if new.window.is_some() || fresh.is_some_and(|panel| new.panels.contains(&panel)) {
                 continue;
             }
             let shared = new.panels.iter().filter(|panel| old.panels.contains(panel)).count();
             if shared > 0 {
-                pairs.push((new.rect != old.rect, Reverse(shared), b, a, window));
+                pairs.push((new.rect != old.rect, Reverse(shared), b, a));
             }
         }
     }
-    pairs.sort_by_key(|(moved, shared, b, a, _)| (*moved, *shared, *b, *a));
+    pairs.sort_by_key(|(moved, shared, b, a)| (*moved, *shared, *b, *a));
     let mut taken_before = vec![false; before.len()];
     let mut taken_after = vec![false; after.len()];
-    for (_, _, b, a, window) in pairs {
+    for (_, _, b, a) in pairs {
         let (Some(old), Some(new)) = (taken_before.get(b).copied(), taken_after.get(a).copied()) else { continue };
         if old || new {
             continue;
@@ -118,9 +181,10 @@ pub fn carry_over(before: &[Floating], after: &mut [Floating], fresh: Option<Pan
         if let (Some(old), Some(new), Some(group)) = (taken_before.get_mut(b), taken_after.get_mut(a), after.get_mut(a)) {
             *old = true;
             *new = true;
-            group.window = Some(window);
+            group.window = before.get(b).and_then(|old| old.window.clone());
         }
     }
+    reconcile_all(after);
 }
 
 /// Turn every in-window floating group into an OS window: its rect (main-window points) becomes
@@ -136,7 +200,7 @@ pub fn promote(groups: &mut [Floating], root: Frame) -> Vec<u32> {
         let [x, y, w, h] = group.rect;
         let min = root.to_phys(pos2(x, y));
         group.rect = [min.x, min.y, w.max(160.0) * root.ppp, h.max(100.0) * root.ppp];
-        group.window = Some(OsWindow { id, fullscreen: false, maximized: false, scale: root.ppp });
+        group.window = Some(OsWindow { id, fullscreen: false, maximized: false, scale: root.ppp, layout: None });
         made.push(id);
     }
     made
@@ -146,7 +210,7 @@ pub fn promote(groups: &mut [Floating], root: Frame) -> Vec<u32> {
 pub fn dedupe_ids(groups: &mut [Floating]) {
     let mut seen = Vec::new();
     for index in 0..groups.len() {
-        let Some(id) = groups.get(index).and_then(|group| group.window).map(|window| window.id) else { continue };
+        let Some(id) = groups.get(index).and_then(|group| group.window.as_ref()).map(|window| window.id) else { continue };
         if !seen.contains(&id) {
             seen.push(id);
             continue;
@@ -161,7 +225,7 @@ pub fn dedupe_ids(groups: &mut [Floating]) {
 
 /// The smallest window id no group uses.
 pub fn free_id(groups: &[Floating]) -> u32 {
-    (1..).find(|id| !groups.iter().any(|group| group.window.is_some_and(|window| window.id == *id))).unwrap_or(u32::MAX)
+    (1..).find(|id| !groups.iter().any(|group| group.window.as_ref().is_some_and(|window| window.id == *id))).unwrap_or(u32::MAX)
 }
 
 /// Whether Escape should leave a fullscreen panel window: only when nothing else wants it (a
@@ -184,11 +248,16 @@ mod tests {
     use super::*;
 
     fn group(panels: &[PanelKind], rect: [f32; 4], window: Option<u32>) -> Floating {
-        Floating { panels: panels.to_vec(), active: 0, rect, window: window.map(|id| OsWindow { id, fullscreen: id % 2 == 0, maximized: false, scale: 1.5 }) }
+        Floating {
+            panels: panels.to_vec(),
+            active: 0,
+            rect,
+            window: window.map(|id| OsWindow { id, fullscreen: id % 2 == 0, maximized: false, scale: 1.5, layout: None }),
+        }
     }
 
     fn ids(groups: &[Floating]) -> Vec<Option<u32>> {
-        groups.iter().map(|g| g.window.map(|w| w.id)).collect()
+        groups.iter().map(|g| g.window.as_ref().map(|w| w.id)).collect()
     }
 
     const R1: [f32; 4] = [10.0, 20.0, 400.0, 300.0];
@@ -274,7 +343,7 @@ mod tests {
         let made = promote(&mut groups, Frame::new(pos2(-1920.0, 10.0), 2.0));
         assert_eq!(made, vec![2]);
         assert_eq!(groups[0].rect, [-3640.0, 120.0, 800.0, 600.0]);
-        assert_eq!(groups[0].window.map(|w| (w.id, w.scale)), Some((2, 2.0)));
+        assert_eq!(groups[0].window.as_ref().map(|w| (w.id, w.scale)), Some((2, 2.0)));
         assert_eq!(groups[1].rect, R1);
     }
 
@@ -319,6 +388,75 @@ mod tests {
         assert!(!escape_exits_fullscreen(true, true, true, false, false));
         assert!(!escape_exits_fullscreen(true, true, false, true, false));
         assert!(!escape_exits_fullscreen(true, true, false, false, true));
+    }
+
+    fn split(a: &[PanelKind], b: &[PanelKind]) -> DockNode {
+        DockNode::Split {
+            vertical: true,
+            size: crate::dock::SplitSize::Ratio(0.5),
+            a: Box::new(DockNode::Tabs { panels: a.to_vec(), active: 0 }),
+            b: Box::new(DockNode::Tabs { panels: b.to_vec(), active: 0 }),
+        }
+    }
+
+    fn tree_panels(tree: &DockNode) -> Vec<PanelKind> {
+        let mut out = Vec::new();
+        tree.panels(&mut out);
+        out.sort_by_key(|p| p.id());
+        out
+    }
+
+    #[test]
+    fn reconcile_follows_the_groups_panels() {
+        let mut tree = split(&[PanelKind::Project], &[PanelKind::Source]);
+        // a panel joined the window: it becomes a tab, and the split stays
+        reconcile(&mut tree, &[PanelKind::Project, PanelKind::Source, PanelKind::Info], None);
+        assert_eq!(tree_panels(&tree), vec![PanelKind::Info, PanelKind::Project, PanelKind::Source]);
+        assert!(matches!(tree, DockNode::Split { .. }));
+        // panels that left are dropped, and the split folds away
+        reconcile(&mut tree, &[PanelKind::Project], None);
+        assert_eq!(tree, DockNode::Tabs { panels: vec![PanelKind::Project], active: 0 });
+    }
+
+    #[test]
+    fn reconcile_brings_the_active_panel_forward_in_its_own_group() {
+        let mut tree = split(&[PanelKind::Project, PanelKind::Info], &[PanelKind::Source]);
+        reconcile(&mut tree, &[PanelKind::Project, PanelKind::Info, PanelKind::Source], Some(PanelKind::Info));
+        let DockNode::Split { a, b, .. } = &tree else { panic!("{tree:?}") };
+        assert_eq!(**a, DockNode::Tabs { panels: vec![PanelKind::Project, PanelKind::Info], active: 1 });
+        assert_eq!(**b, DockNode::Tabs { panels: vec![PanelKind::Source], active: 0 });
+    }
+
+    #[test]
+    fn a_hostile_tree_starts_over_as_one_tab_group() {
+        let panels = [PanelKind::Project, PanelKind::Source];
+        for mut tree in [split(&[PanelKind::Project], &[PanelKind::Project]), DockNode::Tabs { panels: vec![PanelKind::Info; 300], active: 9 }] {
+            reconcile(&mut tree, &panels, Some(PanelKind::Source));
+            assert_eq!(tree, DockNode::Tabs { panels: panels.to_vec(), active: 1 });
+        }
+        let mut deep = DockNode::Tabs { panels: vec![PanelKind::Project], active: 0 };
+        for _ in 0..100 {
+            deep = DockNode::Split {
+                vertical: false,
+                size: crate::dock::SplitSize::Ratio(0.5),
+                a: Box::new(deep),
+                b: Box::new(DockNode::Tabs { panels: vec![], active: 0 }),
+            };
+        }
+        reconcile(&mut deep, &panels, None);
+        assert_eq!(tree_panels(&deep), vec![PanelKind::Project, PanelKind::Source]);
+    }
+
+    #[test]
+    fn carry_over_keeps_the_trees_in_step() {
+        let mut window = OsWindow { id: 5, layout: Some(split(&[PanelKind::Project], &[PanelKind::Source])), ..Default::default() };
+        window.scale = 1.0;
+        let before = vec![Floating { panels: vec![PanelKind::Project, PanelKind::Source], active: 0, rect: R1, window: Some(window) }];
+        // Source docked into the main window: it leaves the window's tree
+        let mut after = vec![group(&[PanelKind::Project], R1, None)];
+        carry_over(&before, &mut after, None);
+        let tree = after[0].window.as_ref().and_then(|w| w.layout.clone());
+        assert_eq!(tree, Some(DockNode::Tabs { panels: vec![PanelKind::Project], active: 0 }));
     }
 
     #[test]

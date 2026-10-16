@@ -16,6 +16,7 @@ pub mod model;
 mod plugin;
 mod render;
 pub mod sync;
+mod tree;
 
 use std::collections::HashMap;
 
@@ -28,6 +29,7 @@ pub(crate) use commands::{COMMANDS, panel_menu_items, route};
 use model::Frame;
 pub use model::OsWindow;
 pub(crate) use model::{carry_over, floated};
+pub(crate) use tree::dock_into_window;
 
 /// Whether this context opens real OS windows (eframe on the desktop) rather than embedding them.
 pub(crate) fn native(ctx: &egui::Context) -> bool {
@@ -137,6 +139,7 @@ pub(crate) fn begin_frame(app: &mut FilmcraftApp, ctx: &egui::Context) {
         None => Vec::new(),
     };
     model::dedupe_ids(&mut app.ui.floating);
+    model::reconcile_all(&mut app.ui.floating);
     let max_side = ctx.input(|input| input.max_texture_side) as f32;
     for group in app.ui.floating.iter_mut().filter(|group| group.window.is_some()) {
         group.rect = model::sanitize_rect(group.rect, max_side);
@@ -165,7 +168,7 @@ pub(crate) fn begin_frame(app: &mut FilmcraftApp, ctx: &egui::Context) {
         window.maximized = !window.maximized;
     }
     let dragging = ctx.data(|data| data.get_temp::<PanelKind>(crate::dock_ui::drag_id())).is_some();
-    let live: Vec<u32> = app.ui.floating.iter().filter_map(|group| group.window.map(|window| window.id)).collect();
+    let live: Vec<u32> = app.ui.floating.iter().filter_map(|group| group.window.as_ref().map(|window| window.id)).collect();
     with_runtime(ctx, |rt| {
         if !dragging {
             rt.drag_owner = None;
@@ -180,7 +183,7 @@ pub(crate) fn begin_frame(app: &mut FilmcraftApp, ctx: &egui::Context) {
 
 /// The window a panel is in, if any.
 fn window_of(app: &FilmcraftApp, panel: PanelKind) -> Option<OsWindow> {
-    app.ui.floating.iter().find(|group| group.panels.contains(&panel)).and_then(|group| group.window)
+    app.ui.floating.iter().find(|group| group.panels.contains(&panel)).and_then(|group| group.window.clone())
 }
 
 /// The pointer state that drives a panel drag, in main-window points. A drag that began in a
