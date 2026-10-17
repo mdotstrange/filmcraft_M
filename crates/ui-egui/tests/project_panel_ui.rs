@@ -17,7 +17,40 @@ use filmcraft_engine::project_panel::{FREEFORM_POS, FREEFORM_STACK, ViewMode};
 use filmcraft_project::{BinEntry, ItemId};
 use filmcraft_ui_egui::FilmcraftApp;
 use filmcraft_ui_egui::control::ControlRequest;
+use filmcraft_ui_egui::dock::PanelKind;
 use serde_json::{Value, json};
+
+/// Double-clicking a clip in the Project panel (or Open in Source Monitor) loads it into the Source
+/// monitor and focuses that panel, so Space, J / K / L and the arrows drive the clip rather than the
+/// timeline. The engine command on its own (Match Frame, scripts) leaves the focus where it is.
+#[test]
+fn opening_a_clip_in_the_source_monitor_focuses_it() {
+    let mut d = Driver::demo();
+    assert_eq!(d.app().ui.focused, PanelKind::Timeline);
+    let item = d.app().session.project.items.values().find(|i| i.as_media().is_some()).map(|i| i.id).expect("a demo media item");
+    // what the Project panel's double-click runs: source.open through the UI command path
+    d.ok("ui.menu.invoke", json!({"id": "source.open", "params": {"item": item.0}}));
+    d.frames(2);
+    assert_eq!(d.app().session.state.source_item, Some(item));
+    assert_eq!(d.app().ui.focused, PanelKind::Source, "the Source monitor takes keyboard focus");
+    d.ok("ui.menu.invoke", json!({"id": "playback.toggle"}));
+    d.frames(2);
+    assert!(d.app().source_playback.clock.playing, "Space plays the clip just opened");
+    assert!(!d.app().playback.playing, "and not the sequence");
+    d.ok("ui.menu.invoke", json!({"id": "playback.toggle"}));
+    d.frames(2);
+    assert!(!d.app().source_playback.clock.playing);
+    // with the Timeline focused again, Space plays the sequence as before
+    d.ok("ui.set", json!({"focused": "Timeline"}));
+    d.ok("ui.menu.invoke", json!({"id": "playback.toggle"}));
+    d.frames(2);
+    assert!(d.app().playback.playing && !d.app().source_playback.clock.playing);
+    d.ok("ui.menu.invoke", json!({"id": "playback.toggle"}));
+    // the engine command on its own (what the Timeline's Match Frame runs) does not move the focus
+    d.app().session.execute("source.open", json!({"item": item.0})).unwrap();
+    d.frames(2);
+    assert_eq!(d.app().ui.focused, PanelKind::Timeline);
+}
 
 struct Driver {
     harness: Harness<'static, FilmcraftApp>,

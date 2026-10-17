@@ -599,6 +599,14 @@ pub fn invoke(app: &mut FilmcraftApp, ctx: &egui::Context, id: &str, mut params:
         remember_stale_clipboard_media(app);
         put_clip_names_on_system_clipboard(app, ctx);
     }
+    // Opening a clip in the Source monitor focuses it, as in Premiere: Space, J / K / L and the
+    // arrow keys now drive that clip (the Project panel's double-click and context menu, the Media
+    // Browser's Open In Source Monitor). Match Frame from the Timeline runs the engine command
+    // directly and keeps the Timeline's focus, as Premiere does.
+    if r.is_ok() && matches!(id, "source.open" | "mediaBrowser.openInSource") {
+        let _ = app.apply_dock(craft_ui::docking::Action::Activate { panel: PanelKind::Source });
+        app.ui.focused = PanelKind::Source;
+    }
     r
 }
 
