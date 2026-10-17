@@ -54,7 +54,9 @@ platforms** G4, G9, G17; **performance** G16; **ecosystem** G11; **measurement**
 
 - **Missing:** import of Premiere project files. `grep -ri prproj crates apps` finds nothing.
   Today an editor must export FCP7 XML, AAF or OTIO from Premiere first, losing bins, effects and
-  most metadata; there is no "Selection as Premiere Project" export either.
+  most metadata; there is no "Selection as Premiere Project" export either. (DaVinci Resolve
+  projects do import whole since 2026-10-17, from `.drp` exports: File ▸ Import From ▸ DaVinci
+  Resolve Project, `crates/interchange/README.md`.)
 - **Impact:** the beta bar requires opening the target's main format; every switching editor's
   existing work is behind this.
 - **Approach:** `.prproj` is gzip-compressed XML. Clean-room from projects we author ourselves in
@@ -316,3 +318,4 @@ platforms** G4, G9, G17; **performance** G16; **ecosystem** G11; **measurement**
 | 2026-10-10 | major | Created from ROADMAP.md's "Where we are lacking" (2026-10-05); re-ranked against Premiere 26.5.2 and the 188 open issues; added `.prproj`, 10-bit / 4:2:2 camera decode, launch crashes and missing PR CI, localization, delivery formats |
 | 2026-10-12 | minor | G10: MP1 (`A_MPEG/L1`) in Matroska imports (#1402) |
 | 2026-10-12 | minor | G10: OpenEXR PXR24 import |
+| 2026-10-17 | minor | G2: DaVinci Resolve `.drp` project import (Media Pool, timelines, compound clips, subtitles); `.prproj` stands |

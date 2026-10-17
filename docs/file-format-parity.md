@@ -14,6 +14,7 @@ only). "Tested" names the evidence.
 | Format | Premiere | Read | Write | Tested | % |
 |---|---|---|---|---|---|
 | **Premiere project `.prproj`** | native | **no** | **no** | — | **0%** ([G2](gaps.md#g2-premieres-prproj-cannot-be-opened)) |
+| DaVinci Resolve project `.drp` | — (Resolve's export) | yes: Media Pool folders, clips, timelines, compound clips, transitions, links, subtitles; grades, Fusion and retimes reported, not reproduced | no | synthetic exports in `crates/interchange/tests/resolve.rs`; two real exports (local, env-gated) | 60% |
 | Our project `.fcproj` | — | yes, schema migrations | yes, atomic, auto-save, recovery journal | migration tests | — |
 | FCP7 XML (`xmeml`) | read + write | yes | yes | round-trip tests; Premiere-exported XML slow (#461) | 75% |
 | FCPXML | read (via XtoCC) | yes | yes | round-trip tests | 80% |
@@ -93,3 +94,4 @@ validation in Avid and Pro Tools, DVD / Blu-ray / DCP / broadcast MXF delivery.
 | Date | Change | Summary |
 |---|---|---|
 | 2026-10-10 | major | Created: format-by-format comparison with Premiere 26.5.2 from the import / export registries, crate READMEs, the installed bundle's exporter listings and open issues |
+| 2026-10-17 | minor | DaVinci Resolve `.drp` project import (`filmcraft_interchange::resolve`, File ▸ Import From ▸ DaVinci Resolve Project) |

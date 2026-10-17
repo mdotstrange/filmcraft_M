@@ -6,3 +6,5 @@ plan/
 .DS_Store
 .claude/worktrees/
 __pycache__/
+# DaVinci Resolve exports dropped in for testing are user data (tests build their own)
+/*.drp
