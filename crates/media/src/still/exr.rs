@@ -10,7 +10,9 @@
 //! it the data window does not cover are transparent. Tiled, deep and multi-part files, chroma
 //! subsampled channels and the PIZ, B44 and DWA compressions are refused with a clear error.
 
-mod inflate;
+/// zlib / DEFLATE decoding, also used by `filmcraft-interchange` (ZIP entries and qCompress blobs
+/// in DaVinci Resolve projects).
+pub mod inflate;
 
 use std::sync::Arc;
 
