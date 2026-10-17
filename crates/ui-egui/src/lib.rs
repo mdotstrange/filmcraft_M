@@ -1274,7 +1274,7 @@ impl FilmcraftApp {
                     .iter()
                     .chain(filmcraft_media::AUDIO_EXTENSIONS)
                     .chain(filmcraft_media::STILL_EXTENSIONS)
-                    .chain(&["srt", "vtt", "scc", "edl", "xml", "fcpxml", "otio", "aaf", "omf"])
+                    .chain(&["srt", "vtt", "scc", "edl", "xml", "fcpxml", "otio", "aaf", "omf", "drp"])
                     .copied()
                     .collect();
                 let bin = params.get("bin").cloned();
@@ -1290,6 +1290,30 @@ impl FilmcraftApp {
                     {
                         app.ui.status = errs.iter().filter_map(Value::as_str).collect::<Vec<_>>().join("; ");
                     }
+                    r
+                })
+            }
+            // File ▸ Import From ▸ DaVinci Resolve Project: a .drp export. As a new project (the
+            // default) it replaces the open one, so unsaved changes are asked about first, with
+            // the Save / Don't Save / Cancel prompt closing a project uses.
+            "file.importResolveProject" => {
+                let mode = params.get("mode").and_then(Value::as_str).unwrap_or("newProject").to_string();
+                let bin = params.get("bin").cloned();
+                self.pick(FileDialog::open_file("DaVinci Resolve Project", &["drp"]), move |app, paths| {
+                    let Some(path) = paths.into_iter().next() else { return Ok(Value::Null) };
+                    let mut p = json!({"path": path, "mode": mode});
+                    if mode == "intoBin" {
+                        p["bin"] = bin.unwrap_or_else(|| json!(app.import_bin().0));
+                    } else if app.session.is_dirty() {
+                        app.ui.clip_dialog =
+                            Some(state::ClipDialogDraft { command: "file.importResolveProject".into(), params: p, info: Value::Null, error: String::new() });
+                        return Ok(json!({"dialog": "importResolveProject"}));
+                    }
+                    let r = app.session.execute("file.importResolveProject", p).map_err(|e| e.to_string());
+                    app.ui.status = match &r {
+                        Ok(v) => panels::clip_dialogs::resolve_import_summary(v),
+                        Err(e) => e.clone(),
+                    };
                     r
                 })
             }

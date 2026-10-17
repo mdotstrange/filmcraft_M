@@ -19,32 +19,34 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         t.text_dim,
     );
     let ctx = ui.ctx().clone();
+    use crate::icons::Icon;
     let cards = [
-        (tl!("Browse files…"), "file.import", tl!("Movies, audio and stills from disk")),
-        (tl!("Demo footage"), "file.importDemoFootage", tl!("Six procedural 1080p clips with sound")),
-        (tl!("Demo project"), "file.openDemoProject", tl!("A cut sequence with transitions, effects and music")),
-        (tl!("Bars and Tone"), "file.newBarsAndTone", tl!("SMPTE HD bars with 1 kHz reference tone")),
+        (tl!("Browse files…"), "file.import", tl!("Movies, audio and stills from disk"), Icon::Folder),
+        (tl!("Demo footage"), "file.importDemoFootage", tl!("Six procedural 1080p clips with sound"), Icon::Film),
+        (tl!("Demo project"), "file.openDemoProject", tl!("A cut sequence with transitions, effects and music"), Icon::Sequence),
+        (tl!("Bars and Tone"), "file.newBarsAndTone", tl!("SMPTE HD bars with 1 kHz reference tone"), Icon::Grid),
+        (tl!("Resolve project…"), "file.importResolveProject", tl!("Bins, media and timelines from a DaVinci Resolve .drp export"), Icon::Folder),
     ];
-    let cw = 260.0;
-    for (i, (title, cmd, sub)) in cards.iter().enumerate() {
-        let r = Rect::from_min_size(rect.min + vec2(24.0 + i as f32 * (cw + 16.0), 90.0), vec2(cw, 150.0));
+    // Cards wrap to as many rows as the panel's width asks for.
+    let (cw, ch, gap) = (260.0, 150.0, 16.0);
+    let per_row = (((rect.width() - 48.0 + gap) / (cw + gap)).floor().max(1.0)) as usize;
+    let mut rows = 1;
+    for (i, (title, cmd, sub, icon)) in cards.iter().enumerate() {
+        let (col, row) = (i % per_row, i / per_row);
+        rows = rows.max(row + 1);
+        let r = Rect::from_min_size(rect.min + vec2(24.0 + col as f32 * (cw + gap), 90.0 + row as f32 * (ch + gap)), vec2(cw, ch));
         let resp = ui.interact(r, egui::Id::new(("imp", *cmd)), Sense::click());
         app.auto.add(&format!("import.{cmd}"), r, title);
         ui.painter().rect_filled(r, 8.0, if resp.hovered() { t.hover } else { t.tl_header_bg });
         ui.painter().text(r.min + vec2(16.0, 110.0), Align2::LEFT_CENTER, *title, Tokens::semibold(14.0), t.text);
         ui.painter().text(r.min + vec2(16.0, 132.0), Align2::LEFT_CENTER, *sub, Tokens::ui(11.5), t.text_dim);
-        crate::icons::paint(
-            ui.painter(),
-            Rect::from_min_size(r.min + vec2(16.0, 18.0), vec2(56.0, 56.0)),
-            [crate::icons::Icon::Folder, crate::icons::Icon::Film, crate::icons::Icon::Sequence, crate::icons::Icon::Grid][i],
-            Color32::from_rgb(140, 150, 255),
-        );
+        crate::icons::paint(ui.painter(), Rect::from_min_size(r.min + vec2(16.0, 18.0), vec2(56.0, 56.0)), *icon, Color32::from_rgb(140, 150, 255));
         if resp.clicked() {
             let _ = crate::menus::invoke(app, &ctx, cmd, json!({}));
             app.ui.mode = crate::state::Mode::Edit;
         }
     }
-    let y = recent(app, ui, rect, 90.0 + 150.0 + 36.0);
+    let y = recent(app, ui, rect, 90.0 + rows as f32 * (ch + gap) + 20.0);
     // Community and project links.
     // ArtCraft wordmark (first-party trademark, docs/brand/), then the section title.
     let logo = crate::brand::paint_wordmark(ui, rect.min + vec2(24.0, y), 15.0, app.ui.dark);

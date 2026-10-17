@@ -3577,3 +3577,9 @@
 	Export the labels to a preset file…	Exporter les étiquettes dans un fichier de paramètre prédéfini…
 	Show the presets folder	Afficher le dossier des paramètres prédéfinis
 	Delete this preset	Supprimer ce paramètre prédéfini
+	DaVinci Resolve Project…	Projet DaVinci Resolve…
+	Resolve project…	Projet Resolve…
+	Bins, media and timelines from a DaVinci Resolve .drp export	Chutiers, médias et timelines d’un export .drp de DaVinci Resolve
+	Save changes to “{project_name}” before importing the Resolve project?	Enregistrer les modifications de « {project_name} » avant d’importer le projet Resolve ?
+	Imported “{project}”: {sequences} timeline(s), {linked} media linked, {offline} offline	« {project} » importé : {sequences} timeline(s), {linked} médias liés, {offline} hors ligne
+	 ({notes} note(s) in the import report)	 ({notes} remarque(s) dans le rapport d’import)

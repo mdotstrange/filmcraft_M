@@ -60,6 +60,7 @@ fn meta(command: &str) -> Option<(&'static str, &'static str)> {
         "clip.speedDuration" => (tl!("Clip Speed / Duration"), "speedDuration"),
         "file.closeProject" => (tl!("Save Project"), "closeProject"),
         "app.quit" => (tl!("Save Project"), "quit"),
+        "file.importResolveProject" => (tl!("Save Project"), "importResolveProject"),
         _ => return None,
     })
 }
@@ -93,7 +94,8 @@ pub fn route(app: &mut FilmcraftApp, id: &str, params: &Value) -> Option<Result<
     if id == "file.saveAll" && app.session.path.is_none() {
         return Some(app.file_dialog("file.save", params));
     }
-    if (id == "file.closeProject" && !app.session.is_dirty()) || id == "app.quit" {
+    // Quit asks only through `intercept_quit`; the Resolve import asks after its file picker.
+    if (id == "file.closeProject" && !app.session.is_dirty()) || id == "app.quit" || id == "file.importResolveProject" {
         return None;
     }
     meta(id)?;
@@ -117,6 +119,26 @@ pub fn intercept_quit(app: &mut FilmcraftApp) -> bool {
         app.ui.clip_dialog = Some(ClipDialogDraft { command: "app.quit".into(), params: json!({}), info: Value::Null, error: String::new() });
     }
     true
+}
+
+/// The status line after `file.importResolveProject`: what came in, and whether the report has
+/// notes worth reading (Window ▸ Events keeps them).
+pub fn resolve_import_summary(result: &Value) -> String {
+    let count = |k: &str| result.get(k).and_then(Value::as_array).map(|a| a.len()).unwrap_or(0);
+    let project = result.get("project").and_then(Value::as_str).unwrap_or("");
+    let linked = result.get("linkedMedia").and_then(Value::as_u64).unwrap_or(0);
+    let mut s = tlf!(
+        "Imported “{project}”: {sequences} timeline(s), {linked} media linked, {offline} offline",
+        project,
+        sequences = count("sequences"),
+        linked,
+        offline = count("offlineMedia")
+    );
+    let notes = count("report");
+    if notes > 0 {
+        s.push_str(&tlf!(" ({notes} note(s) in the import report)", notes));
+    }
+    s
 }
 
 /// Initial parameters (and display info) of a command's dialog.
@@ -539,8 +561,12 @@ pub fn show(app: &mut FilmcraftApp, ctx: &egui::Context) {
                     }
                 }
             }
-            "file.closeProject" | "app.quit" => {
-                ui.label(tlf!("Save changes to “{project_name}” before closing?", project_name));
+            "file.closeProject" | "app.quit" | "file.importResolveProject" => {
+                if d.command == "file.importResolveProject" {
+                    ui.label(tlf!("Save changes to “{project_name}” before importing the Resolve project?", project_name));
+                } else {
+                    ui.label(tlf!("Save changes to “{project_name}” before closing?", project_name));
+                }
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
                     let r = ui.button(tl!("Cancel"));
@@ -621,6 +647,22 @@ pub fn show(app: &mut FilmcraftApp, ctx: &egui::Context) {
                     app.ui.clip_dialog = Some(d);
                     return;
                 }
+            }
+            // Import From ▸ DaVinci Resolve Project: saved or discarded, the export now opens as
+            // the new project (Don't Save closes first, so the recovery snapshot goes too).
+            if d.command == "file.importResolveProject" {
+                if action == Some("dontSave")
+                    && let Err(e) = app.session.execute("file.closeProject", json!({"force": true}))
+                {
+                    app.ui.status = e.to_string();
+                }
+                let r = app.session.execute("file.importResolveProject", d.params.clone());
+                app.ui.status = match &r {
+                    Ok(v) => resolve_import_summary(v),
+                    Err(e) => e.to_string(),
+                };
+                app.ui.clip_dialog = None;
+                return;
             }
             // Quit ▸ Don't Save discards the changes: closing the project also clears their recovery
             // snapshot, so the next launch doesn't offer them back

@@ -3592,3 +3592,9 @@
 	Shows the version, community links and credits in a FilmCraft window.	在 FilmCraft 窗口中显示版本、社区链接和致谢。
 	Couldn't open your web browser	无法打开网页浏览器
 	Open this address in your browser yourself:	请自行在浏览器中打开此地址：
+	DaVinci Resolve Project…	DaVinci Resolve 项目…
+	Resolve project…	Resolve 项目…
+	Bins, media and timelines from a DaVinci Resolve .drp export	来自 DaVinci Resolve .drp 导出文件的媒体夹、媒体和时间线
+	Save changes to “{project_name}” before importing the Resolve project?	导入 Resolve 项目前是否保存对“{project_name}”的更改？
+	Imported “{project}”: {sequences} timeline(s), {linked} media linked, {offline} offline	已导入“{project}”：{sequences} 条时间线，{linked} 个媒体已链接，{offline} 个离线
+	 ({notes} note(s) in the import report)	（导入报告中有 {notes} 条说明）

@@ -3616,3 +3616,9 @@
 	Shows the version, community links and credits in a FilmCraft window.	バージョン、コミュニティへのリンク、クレジットを FilmCraft のウィンドウに表示します。
 	Couldn't open your web browser	ウェブブラウザーを開けませんでした
 	Open this address in your browser yourself:	このアドレスをご自身でブラウザーで開いてください：
+	DaVinci Resolve Project…	DaVinci Resolve プロジェクト…
+	Resolve project…	Resolve プロジェクト…
+	Bins, media and timelines from a DaVinci Resolve .drp export	DaVinci Resolve の .drp 書き出しからビン、メディア、タイムラインを読み込む
+	Save changes to “{project_name}” before importing the Resolve project?	Resolve プロジェクトを読み込む前に“{project_name}”の変更を保存しますか?
+	Imported “{project}”: {sequences} timeline(s), {linked} media linked, {offline} offline	“{project}”を読み込みました: タイムライン {sequences} 本、メディア {linked} 件をリンク、{offline} 件オフライン
+	 ({notes} note(s) in the import report)	 (読み込みレポートに {notes} 件の注記)

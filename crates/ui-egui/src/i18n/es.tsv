@@ -3617,3 +3617,9 @@
 	Shows the version, community links and credits in a FilmCraft window.	Muestra la versión, los enlaces de la comunidad y los créditos en una ventana de FilmCraft.
 	Couldn't open your web browser	No se pudo abrir el navegador web
 	Open this address in your browser yourself:	Abre esta dirección tú mismo en el navegador:
+	DaVinci Resolve Project…	Proyecto de DaVinci Resolve…
+	Resolve project…	Proyecto de Resolve…
+	Bins, media and timelines from a DaVinci Resolve .drp export	Carpetas, medios y líneas de tiempo de una exportación .drp de DaVinci Resolve
+	Save changes to “{project_name}” before importing the Resolve project?	¿Guardar los cambios de “{project_name}” antes de importar el proyecto de Resolve?
+	Imported “{project}”: {sequences} timeline(s), {linked} media linked, {offline} offline	Importado “{project}”: {sequences} línea(s) de tiempo, {linked} medios vinculados, {offline} sin conexión
+	 ({notes} note(s) in the import report)	 ({notes} nota(s) en el informe de importación)

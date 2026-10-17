@@ -3575,3 +3575,9 @@
 	Appearance Settings…	Pengaturan Tampilan…
 	Add to favorites	Tambahkan ke favorit
 	Remove from favorites	Hapus dari favorit
+	DaVinci Resolve Project…	Proyek DaVinci Resolve…
+	Resolve project…	Proyek Resolve…
+	Bins, media and timelines from a DaVinci Resolve .drp export	Bin, media, dan timeline dari ekspor .drp DaVinci Resolve
+	Save changes to “{project_name}” before importing the Resolve project?	Simpan perubahan pada “{project_name}” sebelum mengimpor proyek Resolve?
+	Imported “{project}”: {sequences} timeline(s), {linked} media linked, {offline} offline	“{project}” diimpor: {sequences} timeline, {linked} media tertaut, {offline} offline
+	 ({notes} note(s) in the import report)	 ({notes} catatan dalam laporan impor)

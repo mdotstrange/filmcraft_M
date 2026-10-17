@@ -3596,3 +3596,9 @@
 	Shows the version, community links and credits in a FilmCraft window.	FilmCraft 창에 버전, 커뮤니티 링크, 제작진을 보여 줍니다.
 	Couldn't open your web browser	웹 브라우저를 열 수 없습니다
 	Open this address in your browser yourself:	이 주소를 브라우저에서 직접 여세요:
+	DaVinci Resolve Project…	DaVinci Resolve 프로젝트…
+	Resolve project…	Resolve 프로젝트…
+	Bins, media and timelines from a DaVinci Resolve .drp export	DaVinci Resolve .drp 내보내기의 빈, 미디어, 타임라인
+	Save changes to “{project_name}” before importing the Resolve project?	Resolve 프로젝트를 가져오기 전에 “{project_name}”의 변경 사항을 저장할까요?
+	Imported “{project}”: {sequences} timeline(s), {linked} media linked, {offline} offline	“{project}” 가져옴: 타임라인 {sequences}개, 미디어 {linked}개 연결됨, {offline}개 오프라인
+	 ({notes} note(s) in the import report)	 (가져오기 보고서에 참고 {notes}개)

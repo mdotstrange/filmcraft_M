@@ -3585,3 +3585,9 @@
 
 # The native macOS application menu (Settings…).
 	Settings	Preferências
+	DaVinci Resolve Project…	Projeto do DaVinci Resolve…
+	Resolve project…	Projeto do Resolve…
+	Bins, media and timelines from a DaVinci Resolve .drp export	Pastas, mídias e timelines de uma exportação .drp do DaVinci Resolve
+	Save changes to “{project_name}” before importing the Resolve project?	Salvar as alterações de “{project_name}” antes de importar o projeto do Resolve?
+	Imported “{project}”: {sequences} timeline(s), {linked} media linked, {offline} offline	Importado “{project}”: {sequences} timeline(s), {linked} mídias vinculadas, {offline} offline
+	 ({notes} note(s) in the import report)	 ({notes} nota(s) no relatório de importação)
