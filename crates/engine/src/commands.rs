@@ -1328,6 +1328,15 @@ fn build() -> Vec<CommandSpec> {
                 Ok(json!({"items": ids.iter().map(|i| i.0).collect::<Vec<_>>()}))
             }
         ),
+        cmd!(
+            "file.importResolveProject",
+            "DaVinci Resolve Project…",
+            ["File", "Import From"],
+            None,
+            r#"{"path":str,"mode":"newProject|intoBin"?,"bin":binId?}"#,
+            always,
+            crate::interchange::import_resolve
+        ),
         cmd!("file.import", "Import…", ["File"], Some("Cmd+I"), r#"{"paths":[str],"bin":binId?,"imageSequence":bool?,"replace":bool?}"#, always, |s, p| {
             let bin = u64_p(p, "bin").map(filmcraft_project::BinId);
             let paths: Vec<String> = match p.get("paths").and_then(Value::as_array) {
@@ -1376,7 +1385,7 @@ fn build() -> Vec<CommandSpec> {
                                 Err(e) => errors.push(format!("{path}: {e}")),
                             }
                         } else if let Some(fmt) = crate::interchange::detect(&path, &b) {
-                            match crate::interchange::import(s, &path, &b, fmt) {
+                            match crate::interchange::import_into(s, &path, &b, fmt, bin) {
                                 Ok(r) => {
                                     sequences.extend(r["sequences"].as_array().cloned().unwrap_or_default());
                                     reports.push(r);
