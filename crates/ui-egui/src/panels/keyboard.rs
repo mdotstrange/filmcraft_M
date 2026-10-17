@@ -20,7 +20,7 @@
 //! | `textPanel.*` | Text panel transcript: word / line / segment navigation and selection, Delete, Ripple Delete, Show Program Transcript | (Text) |
 //! | `graphics.beginTextEditing` | Begin Text Editing for a Graphic Layer | Cmd+Alt+' |
 //! | `help.filmcraftHelp` | Help (Premiere Help…) | F1 |
-//! | `app.quit` | Quit | Cmd+Q |
+//! | `app.quit` | Quit (File ▸ Exit; on macOS only the FilmCraft ▸ Quit app menu) | Cmd+Q |
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -129,7 +129,7 @@ pub const COMMANDS: &[UiCommand] = &[
     uic!("textPanel.showProgramTranscript", "Show Program Transcript", [], None),
     uic!("graphics.beginTextEditing", "Begin Text Editing for a Graphic Layer", [], Some("Cmd+Alt+'")),
     uic!("help.filmcraftHelp", "FilmCraft Help…", ["Help"], Some("F1")),
-    uic!("app.quit", "Quit FilmCraft", [], Some("Cmd+Q")),
+    uic!("app.quit", "Quit FilmCraft", ["File"], Some("Cmd+Q")),
 ];
 
 /// FilmCraft's documentation (Help ▸ FilmCraft Help…, F1).

@@ -71,7 +71,9 @@ pub fn install(app: &FilmcraftApp, ctx: egui::Context) -> (Receiver<String>, Men
     for top in MENUS {
         let sub = Submenu::new(app.ui.language.tr(top), true);
         titles.push((top.into(), sub.clone()));
-        let mine: Vec<&Item> = items.iter().filter(|i| i.path.first().map(String::as_str) == Some(top) && !i.id.starts_with("app.settings.")).collect();
+        // File ▸ Exit stays out: the app menu's predefined Quit already holds Cmd+Q
+        let mine: Vec<&Item> =
+            items.iter().filter(|i| i.path.first().map(String::as_str) == Some(top) && !i.id.starts_with("app.settings.") && i.id != "app.quit").collect();
         // submenus by path prefix (e.g. Clip ▸ Video Options ▸ Time Interpolation), created where
         // their first item appears
         let mut subs: Vec<(Vec<String>, Submenu)> = Vec::new();

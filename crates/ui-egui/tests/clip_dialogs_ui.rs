@@ -376,6 +376,21 @@ fn quit_save_on_a_new_project_uses_the_save_dialog_and_scripted_quit_does_not_as
     assert!(d.app().quit_confirmed);
 }
 
+/// File ▸ Exit closes the window like the title bar's close button: with unsaved changes it asks first.
+#[test]
+fn file_exit_closes_the_window_and_asks_to_save() {
+    let mut d = Driver::new();
+    d.edit();
+    assert!(d.has("menu.File"));
+    d.ok("ui.menu.invoke", json!({"id": "app.quit"}));
+    assert!(d.sent(&egui::ViewportCommand::Close), "File ▸ Exit closes the window");
+    assert!(!d.app().quit_confirmed, "unlike the scripted app.quit, the menu does not skip the prompt");
+    d.request_close();
+    assert!(d.sent(&egui::ViewportCommand::CancelClose), "the window must stay open");
+    d.frames(2);
+    assert!(d.has("quit.save") && d.has("quit.dontSave") && d.has("quit.cancel"));
+}
+
 /// #580: Escape while dragging a value in a dialog puts the value back and keeps the dialog open;
 /// Escape with no drag still closes it.
 #[test]

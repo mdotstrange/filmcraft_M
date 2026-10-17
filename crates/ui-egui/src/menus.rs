@@ -778,9 +778,11 @@ pub fn menu_items_for(session: &filmcraft_engine::Session) -> Vec<MenuItem> {
         if c.menu.is_empty() {
             continue;
         }
+        // File ▸ Exit, as Premiere names it on Windows; "Quit FilmCraft" elsewhere (shortcuts, macOS app menu)
+        let label = if c.id == "app.quit" { "Exit" } else { c.label };
         out.push(MenuItem {
             id: c.id.into(),
-            label: c.label.into(),
+            label: label.into(),
             path: c.menu.iter().map(|s| s.to_string()).collect(),
             shortcut: session.shortcuts.primary(c.id),
             enabled: true,
@@ -1097,6 +1099,13 @@ mod tests {
         let reset = ws.iter().position(|it| it.id == "window.workspace.reset");
         assert!(matches!((editing, reset), (Some(e), Some(r)) if e < r), "workspaces come before the layout commands");
         assert!(items.iter().any(|it| it.id == "file.save" && it.path == ["File"]));
+        // File ends with Exit (Ctrl+Q), as in Premiere on Windows
+        let exit = items.iter().rfind(|it| it.path == ["File"]);
+        assert!(exit.is_some_and(|it| it.id == "app.quit" && it.label == "Exit"), "{exit:?}");
+        // the app registers the frontend commands' shortcuts
+        let live = menu_items(&FilmcraftApp::new(filmcraft_engine::Session::default()));
+        let exit = live.iter().rfind(|it| it.path == ["File"]);
+        assert!(exit.is_some_and(|it| it.id == "app.quit" && it.shortcut.as_deref() == Some("Cmd+Q")), "{exit:?}");
     }
 
     /// #1500: like a native menu bar, while one menu is open hovering another title opens it.
