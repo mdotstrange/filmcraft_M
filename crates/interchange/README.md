@@ -45,6 +45,54 @@ Not represented: speed changes and frame holds (exported at 100 % with a report 
 graphics and synthetic media (gaps), video effects other than transitions, clip
 markers (written to the master mob, so they come back as media markers), OMF video and markers.
 
+## DaVinci Resolve projects
+
+`resolve` imports a whole Resolve project from a `.drp` export (Project Manager ▸ Export
+Project); FilmCraft never writes `.drp` and never touches Resolve's own database. Clean-room:
+everything was read off files Resolve 21 exports from projects we authored; no Resolve binary,
+SDK or database driver was consulted.
+
+**Container and dialect.** A `.drp` is a ZIP (stored or DEFLATE entries; `resolve::zipfile`, on the
+EXR inflate decoder) of XML documents, one per database object tree: `project.xml`
+(`SM_Project`), `MediaPool/Master/…/MpFolder.xml` (one per Media Pool folder, nested like the
+folders; the `<Name>` and `<MpFolder>` parent id are authoritative, not the path),
+`SeqContainer/<uuid>.xml` (the tracks and items of one timeline or compound clip) and
+`Gallery.xml` (ignored). An object is `<ClassName DbId="uuid">` with one child element per
+property, collections are `<Prop><Element>…</Element></Prop>`, an empty element is a null, and
+class names may contain `::`, which `resolve::xml` rewrites to `__` inside tags before parsing.
+
+**Binary fields** (`resolve::blob`, hex text in the XML): Qt-serialised maps (`u32 version, u32
+count, (UTF-16BE key, QVariant)*`), versioned payloads (`00 00 00 02, u32 length, flag`: `0x80`
+a raw protocol-buffers message, `0x81` the same inside a zstd frame, decoded with the pure-Rust
+`ruzstd`), qCompress byte arrays (big-endian length + zlib), 16-byte pairs (frame rates and media
+extents as little-endian doubles, picture sizes as big-endian 64-bit integers) and
+`MediaTimemapBA` (version byte + big-endian doubles). Decompressed sizes are capped at 64 MiB;
+every decoder has truncation and bit-flip tests.
+
+| Resolve | FilmCraft |
+|---|---|
+| Media Pool folder (`Sm2MpFolder`) | bin; the root "Master" folder is the fragment root |
+| Video / audio clip (`Sm2MpVideoClip`, `Sm2MpAudioClip`) | media item at the path of its `Clip` record (directory + file); size, frame rate, frame count, sample rate, channels and marks from the `Time`, `Geometry` and `TracksBA` maps; no path → offline item |
+| Timeline (`Sm2MpTimelineClip` → `Sm2Timeline` → `Sm2Sequence`) | sequence: frame rate from `FrameRate`, size from `Resolution` (zeros = the most common media size), start timecode from `MediaExtents`, master channels from `NumOutputAudioChannels`; tracks from the `SeqRef` container |
+| Compound clip (`Sm2MpCompoundClip`) | sequence (not top-level) |
+| Track (`Sm2TiTrack`): `UserDefinedName`, `Flags` | track name; flags 1 locked, 2 disabled (video) / muted (audio), 4 solo (read off exports) |
+| Clip (`Sm2TiVideoClip`, `Sm2TiAudioClip`): `Start`, `Duration`, `In`, `MediaRef` | clip at `Start − timeline start` frames, `In` frames of source at the media rate (`MediaFrameRate`); a `MediaRef` to a timeline or compound clip nests that sequence (`In` relative to its start); a clip whose media is not in the pool is linked by its `MediaFilePath` |
+| Transition (`Sm2TiTransition`): `PrettyType`, `AlignmentType` | transition between the clips meeting in its range; alignment 1 start at cut, 2 centred, else end at cut; `Cross Fade 0DB` → Constant Gain, unknown names → Cross Dissolve with a warning |
+| Generators (`Sm2TiGenerator`): Solid Color, SMPTE Color Bar, Adjustment Clip | black colour matte (the colour is not readable), Bars and Tone, adjustment layer |
+| Fusion titles and clips, other generators | transparent placeholder clip named after the item, with a warning |
+| Subtitle track items | caption track (`Subtitle`), text from the item's fields; overlaps are shortened |
+| Clips of one source cut together on video and audio tracks | linked |
+| `TimelineHandleVec` / `CurrentTimelineIndex` | top-level sequence order; the current timeline first (it opens after the import) |
+
+Not imported, counted in the report: colour grades and effects (`EffectFiltersBA`), retimes
+(`MediaTimemapBA` beyond the plain map), markers (layout unknown), Fusion compositions, clip
+colours, audio track formats and the project-wide settings blob (render settings only).
+
+`cargo run -p filmcraft-interchange --example resolve_dump -- project.drp [entry-filter]` prints an
+export's documents with every binary field decoded. `tests/resolve.rs` imports a synthetic export
+built in-test and, when `FILMCRAFT_RESOLVE_DRP` lists `.drp` paths (`;`-separated), real ones,
+printing their reports.
+
 ## Nested sequences
 
 For the formats Premiere Pro exports (FCP7 XML, OTIO, EDL, AAF, OMF) a nested sequence is written

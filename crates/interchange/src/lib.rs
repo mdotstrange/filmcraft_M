@@ -7,7 +7,9 @@
 //! - **FCPXML** 1.9–1.11 ([`fcpxml`]);
 //! - **OpenTimelineIO** JSON (`.otio`) ([`otio`]);
 //! - **AAF** (`.aaf`, Edit Protocol, structured storage) ([`aaf`]);
-//! - **OMF Interchange 2.0** (`.omf`, Bento) for audio post ([`omf`]).
+//! - **OMF Interchange 2.0** (`.omf`, Bento) for audio post ([`omf`]);
+//! - **DaVinci Resolve projects** (`.drp` exports: Media Pool, timelines, compound clips), import
+//!   only ([`resolve`]).
 //!
 //! AAF and OMF can embed or consolidate audio: [`essence::audio_needs`] lists what the caller
 //! (the engine) has to render, and [`essence::MediaOptions`] passes the result back in.
@@ -64,9 +66,13 @@ pub enum Format {
     Aaf,
     /// OMF Interchange 2.0 (Bento container).
     Omf,
+    /// DaVinci Resolve project export (`.drp`): a whole project, import only.
+    ResolveProject,
 }
 
 impl Format {
+    /// The formats FilmCraft both reads and writes (every format but the import-only
+    /// [`Format::ResolveProject`]).
     pub const ALL: [Format; 6] = [Format::Edl, Format::Fcp7Xml, Format::Fcpxml, Format::Otio, Format::Aaf, Format::Omf];
 
     pub fn name(self) -> &'static str {
@@ -77,6 +83,7 @@ impl Format {
             Format::Otio => "OpenTimelineIO",
             Format::Aaf => "AAF",
             Format::Omf => "OMF",
+            Format::ResolveProject => "DaVinci Resolve Project",
         }
     }
 
@@ -89,6 +96,7 @@ impl Format {
             Format::Otio => "otio",
             Format::Aaf => "aaf",
             Format::Omf => "omf",
+            Format::ResolveProject => "drp",
         }
     }
 
@@ -102,6 +110,7 @@ impl Format {
             "otio" => Some(Format::Otio),
             "aaf" => Some(Format::Aaf),
             "omf" | "omfi" => Some(Format::Omf),
+            "drp" => Some(Format::ResolveProject),
             _ => None,
         }
     }
@@ -114,6 +123,9 @@ pub fn detect(bytes: &[u8], extension: Option<&str>) -> Option<Format> {
     }
     if omf::sniff(bytes) && extension.is_none_or(|e| matches!(Format::from_extension(e), None | Some(Format::Omf))) {
         return Some(Format::Omf);
+    }
+    if resolve::sniff(bytes) {
+        return Some(Format::ResolveProject);
     }
     let head = String::from_utf8_lossy(&bytes[..bytes.len().min(4096)]);
     let head = head.trim_start_matches('\u{feff}').trim_start();
@@ -267,6 +279,11 @@ pub fn import_with(bytes: &[u8], format: Format, opts: &ImportOptions) -> Result
         }
         return Ok((imported, report));
     }
+    if format == Format::ResolveProject {
+        let mut report = Report::default();
+        let imported = resolve::import(bytes, opts, &mut report)?;
+        return Ok((imported, report));
+    }
     let text = decode_text(bytes);
     let mut report = Report::default();
     let imported = match format {
@@ -274,7 +291,7 @@ pub fn import_with(bytes: &[u8], format: Format, opts: &ImportOptions) -> Result
         Format::Fcp7Xml => fcp7::import(&text, opts, &mut report)?,
         Format::Fcpxml => fcpxml::import(&text, opts, &mut report)?,
         Format::Otio => otio::import(&text, opts, &mut report)?,
-        Format::Aaf | Format::Omf => return Err(Error::Other("AAF / OMF are binary documents".into())),
+        Format::Aaf | Format::Omf | Format::ResolveProject => return Err(Error::Other("AAF / OMF / Resolve projects are binary documents".into())),
     };
     Ok((imported, report))
 }
@@ -385,13 +402,16 @@ pub fn export(project: &Project, sequence: ItemId, format: Format, opts: &Export
     if format == Format::Omf {
         return omf::export(project, sequence, &omf::OmfOptions { name: opts.name.clone(), ..Default::default() });
     }
+    if format == Format::ResolveProject {
+        return Err(Error::Other("DaVinci Resolve projects can be imported, not exported".into()));
+    }
     let mut report = Report::default();
     let text = match format {
         Format::Edl => edl::export(project, sequence, opts, &mut report)?,
         Format::Fcp7Xml => fcp7::export(project, sequence, opts, &mut report)?,
         Format::Fcpxml => fcpxml::export(project, sequence, opts, &mut report)?,
         Format::Otio => otio::export(project, sequence, opts, &mut report)?,
-        Format::Aaf | Format::Omf => return Err(Error::Other("AAF / OMF are binary documents".into())),
+        Format::Aaf | Format::Omf | Format::ResolveProject => return Err(Error::Other("AAF / OMF / Resolve projects are binary documents".into())),
     };
     Ok((text.into_bytes(), report))
 }
@@ -463,6 +483,12 @@ pub fn merge_into(target: &mut Project, fragment: Imported, bin: Option<BinId>) 
                         tr.id = TransitionId(target.alloc_id());
                         tr.from = tr.from.and_then(|c| clips.get(&c).copied());
                         tr.to = tr.to.and_then(|c| clips.get(&c).copied());
+                    }
+                }
+                for ct in &mut seq.caption_tracks {
+                    ct.id = TrackId(target.alloc_id());
+                    for c in &mut ct.captions {
+                        c.id = ClipId(target.alloc_id());
                     }
                 }
             }

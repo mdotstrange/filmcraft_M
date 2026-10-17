@@ -384,6 +384,16 @@ impl Builder {
         id
     }
 
+    /// An adjustment layer item, deduplicated by `key`.
+    pub fn adjustment_layer(&mut self, key: &str, name: &str, width: u32, height: u32, rate: FrameRate, duration: Tick, bin: Option<BinId>) -> ItemId {
+        if let Some(id) = self.media.get(key) {
+            return *id;
+        }
+        let id = self.p.add_item(name, Label::Lavender, ItemKind::AdjustmentLayer { width, height, rate, duration }, bin);
+        self.media.insert(key.to_string(), id);
+        id
+    }
+
     /// Add an empty sequence item (filled later with [`Builder::put_sequence`]).
     pub fn reserve_sequence(&mut self, name: &str, settings: SequenceSettings, bin: Option<BinId>) -> ItemId {
         let seq = empty_sequence(settings);
