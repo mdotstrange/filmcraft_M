@@ -147,6 +147,10 @@ pub struct Tokens {
     pub radius_sm: f32,
     pub gap: f32,
     pub tab_h: f32,
+    /// Menus, popups, tooltips and dialog windows; the panel colour on the stock themes.
+    pub popup_bg: Color32,
+    /// Graph paper behind blank surfaces ([`crate::theme_uberector`]); `None` on the stock themes.
+    pub paper: Option<crate::theme_uberector::Paper>,
 }
 
 impl Tokens {
@@ -240,6 +244,8 @@ impl Tokens {
             radius_sm: 4.0,
             gap: 4.0,
             tab_h: 32.0,
+            popup_bg: Color32::from_rgb(0x1d, 0x1d, 0x1d),
+            paper: None,
         };
         match kind {
             ThemeKind::Dark => dark,
@@ -257,6 +263,7 @@ impl Tokens {
                 monitor_bg: Color32::from_rgb(0x32, 0x32, 0x32),
                 row_alt: Color32::from_rgb(50, 50, 50),
                 hover: Color32::from_rgb(64, 64, 64),
+                popup_bg: Color32::from_rgb(0x32, 0x32, 0x32),
                 ..dark
             },
             ThemeKind::Light => Tokens {
@@ -328,6 +335,7 @@ impl Tokens {
                 tl_header_bg: Color32::from_rgb(214, 214, 214),
                 tl_ruler_bg: Color32::from_rgb(226, 226, 226),
                 tl_ruler_text: Color32::from_rgb(80, 80, 80),
+                popup_bg: Color32::from_rgb(232, 232, 232),
                 ..dark
             },
         }
@@ -464,7 +472,7 @@ pub fn apply_visuals(ctx: &egui::Context, t: &Tokens) {
     ctx.set_theme(if light { egui::Theme::Light } else { egui::Theme::Dark });
     let mut v = if light { Visuals::light() } else { Visuals::dark() };
     v.panel_fill = t.panel_bg;
-    v.window_fill = t.panel_bg;
+    v.window_fill = t.popup_bg;
     v.extreme_bg_color = t.field_bg;
     v.faint_bg_color = t.row_alt;
     v.override_text_color = Some(t.text);

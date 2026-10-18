@@ -9,7 +9,7 @@ use crate::theme::Tokens;
 
 pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     let t = app.tokens;
-    ui.painter().rect_filled(rect, t.radius, t.panel_bg);
+    t.fill(ui.painter(), rect, t.radius, t.panel_bg);
     ui.painter().text(rect.min + vec2(24.0, 30.0), Align2::LEFT_CENTER, tl!("Import"), Tokens::semibold(22.0), t.text);
     ui.painter().text(
         rect.min + vec2(24.0, 58.0),

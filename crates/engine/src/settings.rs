@@ -104,6 +104,9 @@ pub struct AppearancePrefs {
     pub favorite_themes: Vec<String>,
     /// "Accessible color contrast": brighter secondary text and borders.
     pub accessible_contrast: bool,
+    /// "Uberector Theme": the Uberector navy / pink palette with a graph-paper background on
+    /// whichever theme is shown (docs/uberector-theme.md).
+    pub uberector_theme: bool,
     /// Highlight (accent) colour of selections, focus and primary buttons (`#rrggbb`).
     pub highlight_color: String,
     /// "UI Scale": `auto` (default: the scale the operating system reports) or a fixed
@@ -120,6 +123,7 @@ impl Default for AppearancePrefs {
             light_theme: "light".into(),
             favorite_themes: Vec::new(),
             accessible_contrast: false,
+            uberector_theme: false,
             highlight_color: DEFAULT_HIGHLIGHT.into(),
             ui_scale: "auto".into(),
         }

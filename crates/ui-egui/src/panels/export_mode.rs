@@ -164,7 +164,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     let right = Rect::from_min_max(pos2(rect.max.x - (rect.width() * 0.4).clamp(360.0, 640.0), rect.min.y), rect.max);
     let mid = Rect::from_min_max(pos2(left.max.x + 4.0, rect.min.y), pos2(right.min.x - 4.0, rect.max.y));
     for r in [left, mid, right] {
-        ui.painter().rect_filled(r, t.radius, t.panel_bg);
+        t.fill(ui.painter(), r, t.radius, t.panel_bg);
     }
     let Some(seq_id) = app.session.state.active_sequence else {
         crate::dock::placeholder(ui, mid, &t, tl!("Open a sequence to export"));

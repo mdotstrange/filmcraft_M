@@ -600,7 +600,7 @@ pub fn draw_group_chrome_details(ui: &mut egui::Ui, g: &Group, seqs: &SeqTabs, t
     let mut actions = Vec::new();
     let mut tab_rects: Vec<(PanelKind, Rect)> = Vec::new();
     let painter = ui.painter().clone();
-    painter.rect_filled(g.rect, t.radius, t.panel_bg);
+    t.fill(&painter, g.rect, t.radius, t.panel_bg);
     let active_panel = g.panels.get(g.active).copied();
     let compact = g.panels.len() == 1 && g.panels[0].compact();
     // A narrow header grip moves the entire panel, including Timeline panels whose tabs

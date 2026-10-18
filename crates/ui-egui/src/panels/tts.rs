@@ -206,7 +206,7 @@ enum Action {
 pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     let t = app.tokens;
     let painter = ui.painter().clone();
-    painter.rect_filled(rect, 0.0, t.panel_bg);
+    t.fill(&painter, rect, 0.0, t.panel_bg);
     let models = filmcraft_engine::transcript::models_dir();
     let voices = filmcraft_tts::voices_in(models.as_deref());
     let installed = models.as_deref().is_some_and(filmcraft_tts::catalog::installed);

@@ -59,6 +59,7 @@ pub mod source_playback;
 pub mod state;
 pub mod theme;
 mod theme_favorites;
+pub mod theme_uberector;
 pub mod widgets;
 
 use std::collections::HashMap;
@@ -276,6 +277,8 @@ pub struct FilmcraftApp {
     pub session: Session,
     pub ui: UiState,
     pub tokens: Tokens,
+    /// The Uberector theme's graph-paper tile ([`theme_uberector`]).
+    paper_tile: Option<theme_uberector::PaperTile>,
     pub frames: Arc<FrameServer>,
     pub playback: Playback,
     pub source_playback: source_playback::SourcePlayback,
@@ -542,6 +545,7 @@ impl FilmcraftApp {
             session,
             ui: UiState { language, ..UiState::default() },
             tokens: Tokens::for_kind(ThemeKind::Dark),
+            paper_tile: None,
             frames,
             playback: Playback { speed: 1.0, ..Default::default() },
             source_playback: Default::default(),
@@ -643,8 +647,7 @@ impl FilmcraftApp {
     /// Show theme `k` with the Settings ▸ Appearance highlight colour and contrast.
     pub fn set_theme(&mut self, ctx: &egui::Context, k: ThemeKind) {
         let a = &self.session.prefs.appearance;
-        let highlight = filmcraft_engine::settings::parse_hex(&a.highlight_color);
-        self.tokens = Tokens::for_kind(k).with_appearance(highlight, a.accessible_contrast);
+        self.tokens = theme_uberector::resolve(ctx, a, k, &mut self.paper_tile);
         theme::apply_visuals(ctx, &self.tokens);
         self.apply_tooltips(ctx);
         self.ui.dark = k != ThemeKind::Light;
@@ -690,6 +693,7 @@ impl FilmcraftApp {
     /// play after rendering, audio device).
     pub fn apply_prefs(&mut self, ctx: &egui::Context) {
         self.apply_ui_scale(ctx);
+        theme_uberector::refresh(ctx, &mut self.tokens, &mut self.paper_tile);
         // Appearance Mode ▸ Sync with system: follow the system while running. The host reports
         // changes as they happen (no polling) and wakes the UI only when the value changes.
         if self.applied_prefs.is_some() {
@@ -1801,7 +1805,7 @@ impl FilmcraftApp {
         }
         let t = self.tokens;
         let full = ui.max_rect();
-        ui.painter().rect_filled(full, 0.0, t.app_bg);
+        t.fill(ui.painter(), full, 0.0, t.app_bg);
         let header_h = if self.ui.show_header { 38.0 } else { 0.0 };
         let header = egui::Rect::from_min_size(full.min, egui::vec2(full.width(), header_h));
         if self.ui.show_header {

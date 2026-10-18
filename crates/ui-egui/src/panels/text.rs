@@ -27,7 +27,7 @@ fn tab_text_width(painter: &egui::Painter, label: &str) -> f32 {
 
 pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     let t = app.tokens;
-    ui.painter().rect_filled(rect, 0.0, t.panel_bg);
+    t.fill(ui.painter(), rect, 0.0, t.panel_bg);
     // tabs
     let mut x = rect.min.x + 12.0;
     for tab in TABS {

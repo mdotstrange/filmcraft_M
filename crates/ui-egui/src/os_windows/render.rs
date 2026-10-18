@@ -194,7 +194,7 @@ impl FilmcraftApp {
 
         let t = self.tokens;
         let full = ui.max_rect();
-        ui.painter().rect_filled(full, 0.0, t.app_bg);
+        t.fill(ui.painter(), full, 0.0, t.app_bg);
         let rect = full.shrink(1.0);
         let first_element = self.auto.elements.len();
         // the window's own dock tree: splits, gutters and tab groups as in the main window

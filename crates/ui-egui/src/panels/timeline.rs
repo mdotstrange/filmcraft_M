@@ -320,7 +320,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     let ruler = Rect::from_min_max(pos2(content.min.x, rect.min.y + TOP_H - RULER_H), pos2(content.max.x, rect.min.y + TOP_H));
     app.last_timeline_width = content.width();
     let painter = ui.painter().clone();
-    painter.rect_filled(rect, 0.0, t.panel_bg);
+    t.fill(&painter, rect, 0.0, t.panel_bg);
 
     // ---- sequence tabs strip (top-left header block)
     // ---- animated zoom / scroll
@@ -444,7 +444,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     app.tl.layout = Some(layout.clone());
 
     // ---- backgrounds
-    painter.rect_filled(Rect::from_min_max(pos2(content.min.x, content.min.y), content.max), 0.0, t.tl_bg);
+    t.fill(&painter, Rect::from_min_max(pos2(content.min.x, content.min.y), content.max), 0.0, t.tl_bg);
     let vclip = Rect::from_min_max(pos2(rect.min.x, video_area.min.y), video_area.max);
     let aclip = Rect::from_min_max(pos2(rect.min.x, audio_area.min.y), audio_area.max);
     for r in &rows {

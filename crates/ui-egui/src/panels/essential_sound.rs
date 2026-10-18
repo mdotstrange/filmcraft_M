@@ -55,7 +55,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     let tab = if app.ui.essential_sound_tab == "Browse" { "Browse" } else { "Edit" };
     let mut cx = Ctx { t, auto: &mut app.auto, actions: Vec::new(), clips: clip_ids.iter().map(|c| c.0).collect() };
     let painter = ui.painter().clone();
-    painter.rect_filled(rect, 0.0, t.panel_bg);
+    t.fill(&painter, rect, 0.0, t.panel_bg);
     // ---- Browse | Edit
     let mut x = rect.min.x + PAD;
     let ty = rect.min.y + 16.0;

@@ -256,7 +256,7 @@ fn timeline(app: &mut FilmcraftApp, ui: &mut egui::Ui, lane: Rect, id: Transitio
     let mut drag: Option<LaneDrag> = ui.data(|d| d.get_temp(mem));
     let v = drag.map_or_else(|| view(x, cut, frame), |d| d.view);
     let painter = ui.painter().with_clip_rect(lane.intersect(ui.clip_rect()));
-    painter.rect_filled(lane, 0.0, t.tl_bg);
+    t.fill(&painter, lane, 0.0, t.tl_bg);
     let ruler = Rect::from_min_max(lane.min, pos2(lane.max.x, lane.min.y + RULER_H));
     paint_ruler(&painter, ruler, v, rate, drop_frame, &t);
     // the rows: A on top, the transition between, B under it, as Premiere stacks them

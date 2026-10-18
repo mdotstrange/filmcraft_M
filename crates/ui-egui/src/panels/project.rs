@@ -452,7 +452,7 @@ fn body(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect, v: &View, actions
         y = pr.max.y + 6.0;
     }
     let content = Rect::from_min_max(pos2(rect.min.x + 4.0, y), pos2(rect.max.x - 4.0, rect.max.y - FOOTER_H));
-    ui.painter().rect_filled(content, 4.0, t.panel_bg.gamma_multiply(0.92));
+    t.fill(ui.painter(), content, 4.0, t.panel_bg.gamma_multiply(0.92));
     let mut cui = ui.new_child(egui::UiBuilder::new().max_rect(content).id_salt((&pre, "content")));
     cui.set_clip_rect(content.intersect(ui.clip_rect()));
     match v.mode {
