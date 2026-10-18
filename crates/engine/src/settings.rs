@@ -1055,6 +1055,7 @@ static CATEGORIES: &[Category] = &[
             f("appearance.darkTheme", "Dark Theme", Kind::Choice(DARK_THEMES), true),
             f("appearance.colorTheme", "Color Theme", Kind::Choice(THEMES), true),
             b("appearance.accessibleContrast", "Accessible color contrast", true),
+            b("appearance.uberectorTheme", "Uberector Theme", true),
             f("appearance.highlightColor", "Highlight Color", Kind::Color, true),
             f("appearance.uiScale", "UI Scale", Kind::Choice(UI_SCALES), true),
         ],
@@ -1455,6 +1456,9 @@ pub fn sanitize(v: &mut Value, defaults: &Value) {
         let def = path.iter().try_fold(defaults, |v, k| v.get(*k)).cloned().unwrap_or(Value::Null);
         match f.kind {
             Kind::Choice(_) | Kind::Color if validate(f.key, slot).is_err() => {
+                *slot = def;
+            }
+            Kind::Bool if !slot.is_boolean() => {
                 *slot = def;
             }
             Kind::Int { min, max, .. } => match slot.as_f64().filter(|x| x.is_finite()) {

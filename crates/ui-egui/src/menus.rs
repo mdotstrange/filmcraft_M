@@ -106,6 +106,7 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     uic!("view.theme.dark", "Darkest", ["View", "Appearance"], None),
     uic!("view.theme.medium", "Dark", ["View", "Appearance"], None),
     uic!("view.theme.light", "Light", ["View", "Appearance"], None),
+    uic!("view.theme.uberector", "Uberector Theme", ["View", "Appearance"], None),
     uic!("view.appearanceMode.next", "Next Appearance Mode", ["View", "Appearance"], None),
     uic!("window.workspace.editing", "Editing", ["Window", "Workspaces"], Some("Alt+Shift+1")),
     uic!("window.workspace.assembly", "Assembly", ["Window", "Workspaces"], Some("Alt+Shift+2")),
@@ -558,6 +559,9 @@ pub fn invoke(app: &mut FilmcraftApp, ctx: &egui::Context, id: &str, mut params:
         crate::panels::settings::cycle_appearance(app, ctx);
         return Ok(json!({"appearanceMode": app.session.prefs.appearance.appearance_mode}));
     }
+    if id == "view.theme.uberector" {
+        return crate::theme_uberector::toggle(app, ctx);
+    }
     if let Some(th) = id.strip_prefix("view.theme.") {
         let k = crate::theme::ThemeKind::from_name(th).ok_or("unknown theme")?;
         crate::panels::settings::set_theme(app, ctx, k);
@@ -712,7 +716,9 @@ pub fn menu_items(app: &FilmcraftApp) -> Vec<MenuItem> {
             _ => {}
         }
         if it.id.starts_with("view.") {
-            it.checked = crate::panels::monitor_view::checked(app, &it.id).or(crate::panels::menu_dialogs::checked(app, &it.id));
+            it.checked = crate::panels::monitor_view::checked(app, &it.id)
+                .or(crate::panels::menu_dialogs::checked(app, &it.id))
+                .or(crate::theme_uberector::checked(app, &it.id));
             it.enabled &= crate::panels::monitor_view::enabled(app, &it.id);
         }
     }

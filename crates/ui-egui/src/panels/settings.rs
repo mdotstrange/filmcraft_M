@@ -134,7 +134,7 @@ fn theme_preview(ui: &mut Ui, t: &Tokens, width: f32) {
     let (rect, _) = ui.allocate_exact_size(vec2(width, 128.0), Sense::hover());
     let p = ui.painter_at(rect);
     let bar = |r: Rect, w: f32, c: Color32| p.rect_filled(Rect::from_min_size(r.min, vec2(w, 2.0)), 1.0, c);
-    p.rect_filled(rect, 3.0, t.app_bg);
+    t.fill(&p, rect, 3.0, t.app_bg);
     // header: home, the three mode tabs (Edit active, underlined), the title, quick actions
     let header = Rect::from_min_size(rect.min, vec2(rect.width(), 12.0));
     p.rect_filled(header, CornerRadius { nw: 3, ne: 3, sw: 0, se: 0 }, t.header_bg);
@@ -154,7 +154,7 @@ fn theme_preview(ui: &mut Ui, t: &Tokens, width: f32) {
     let body = Rect::from_min_max(pos2(rect.left() + 2.0, header.bottom() + 2.0), rect.max - vec2(2.0, 2.0));
     let split_y = body.top() + body.height() * 0.5;
     let panel = |r: Rect, tab_w: f32| {
-        p.rect_filled(r, 2.0, t.panel_bg);
+        t.fill(&p, r, 2.0, t.panel_bg);
         bar(Rect::from_min_size(r.min + vec2(4.0, 3.5), vec2(tab_w, 2.0)), tab_w, t.tab_text_active);
         Rect::from_min_max(r.min + vec2(3.0, 9.0), r.max - vec2(3.0, 3.0))
     };
@@ -247,7 +247,8 @@ fn theme_card(app: &mut FilmcraftApp, ui: &mut Ui, d: &mut SettingsDraft, key: &
     let shown = opts.iter().find(|(v, _)| *v == current).or(opts.first()).map_or("darkest", |(v, _)| v);
     let highlight = settings::parse_hex(&choice_text(get(&d.values, "appearance.highlightColor")));
     let contrast = get(&d.values, "appearance.accessibleContrast").as_bool().unwrap_or(false);
-    let look = Tokens::for_kind(crate::theme::ThemeKind::from_pref(shown)).with_appearance(highlight, contrast);
+    let uberector = get(&d.values, "appearance.uberectorTheme").as_bool().unwrap_or(false);
+    let look = crate::theme_uberector::look(&t, uberector, crate::theme::ThemeKind::from_pref(shown), highlight, contrast);
     let r = Frame::new()
         .fill(t.field_bg)
         .stroke(Stroke::new(1.0, if active { t.accent } else { t.field_border }))
@@ -365,7 +366,7 @@ fn diff(prefix: &str, old: &Value, new: &Value, out: &mut Map<String, Value>) {
 }
 
 fn modal_frame(t: &Tokens) -> Frame {
-    Frame::new().fill(t.panel_bg).stroke(Stroke::new(1.0, t.separator)).corner_radius(CornerRadius::same(10)).inner_margin(Margin::same(0))
+    Frame::new().fill(t.popup_bg).stroke(Stroke::new(1.0, t.separator)).corner_radius(CornerRadius::same(10)).inner_margin(Margin::same(0))
 }
 
 fn button(app: &mut FilmcraftApp, ui: &mut Ui, id: &str, label: &str, primary: bool) -> bool {

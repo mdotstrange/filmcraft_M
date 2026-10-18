@@ -693,6 +693,27 @@ fn appearance_choices_validate_and_legacy_theme_still_selects() {
 }
 
 #[test]
+fn uberector_theme_pref_defaults_round_trips_and_sanitizes() {
+    let mut s = Session::default();
+    assert!(!s.prefs.appearance.uberector_theme, "off by default");
+    assert!(settings::field("appearance.uberectorTheme").is_some_and(|f| matches!(f.kind, Kind::Bool)));
+    set(&mut s, "appearance.uberectorTheme", json!(true));
+    assert!(s.prefs.appearance.uberector_theme);
+    assert_eq!(s.execute("prefs.get", json!({"key": "appearance.uberectorTheme"})).unwrap(), json!(true));
+    for v in [json!("yes"), json!(1), json!(null), json!([true])] {
+        assert!(s.execute("prefs.set", json!({"key": "appearance.uberectorTheme", "value": v})).is_err(), "{v}");
+    }
+    assert!(s.prefs.appearance.uberector_theme, "a rejected value changes nothing");
+    // a hand-edited file: the bad value goes back to the default and the rest of Appearance survives
+    let p = Preferences::from_value(json!({"appearance": {"uberectorTheme": "yes", "appearanceMode": "light", "highlightColor": "#ff0000"}}));
+    assert!(!p.appearance.uberector_theme);
+    assert_eq!((p.appearance.appearance_mode.as_str(), p.appearance.highlight_color.as_str()), ("light", "#ff0000"));
+    assert!(Preferences::from_value(json!({"appearance": {"uberectorTheme": true}})).appearance.uberector_theme);
+    s.execute("prefs.reset", json!({"category": "appearance"})).unwrap();
+    assert!(!s.prefs.appearance.uberector_theme);
+}
+
+#[test]
 fn favorite_themes_validate_and_persist_without_changing_other_settings() {
     let dir = tmp_dir("theme-favorites");
     let path = dir.join("preferences.json");

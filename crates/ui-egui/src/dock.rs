@@ -621,6 +621,7 @@ pub fn draw_group_chrome_details(ui: &mut egui::Ui, g: &Group, seqs: &SeqTabs, t
         }
     } else {
         let strip = Rect::from_min_size(g.rect.min, vec2(g.rect.width(), t.tab_h));
+        painter.rect_filled(strip, 0.0, t.tab_bg);
         // the Timeline panel shows one tab per open sequence (its own tab names the sequence)
         struct Tab {
             panel: PanelKind,
